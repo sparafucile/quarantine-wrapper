@@ -12,8 +12,9 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 | **Proxy** | Squid (:3128) + mitmproxy (:8080/:8081) |
 | **Isolation** | NetworkPolicy + CiliumNetworkPolicy (default-deny) |
 | **CA** | Auto-generiert via OpenBao K8s Auth + ExternalSecret + CronJob-Distribution |
+| **mitmweb PW** | Auto-generiert via OpenBao, als `web_password` an mitmweb uebergeben |
 | **Auth** | Authentik Proxy-Provider (PostSync-Job, auto-discovery) |
-| **Default-App** | `quarantine-default` (HelloWorld + mitmweb, kein Authentik) |
+| **Apps** | OpenClaw AI-Agent (optional), Hello-World Debug-Pod (optional) |
 
 ## Architektur
 
@@ -57,9 +58,11 @@ helm lint . -f values-<appName>.yaml
 3. Alles weitere passiert **vollautomatisch** beim ersten Sync:
    - Namespaces, Policies, Proxy, CA-Generierung, CA-Distribution, Authentik-Setup
 
-**CA-Keypair:** Wird automatisch beim ersten ArgoCD-Sync durch einen Sync-Hook Job generiert und in OpenBao gespeichert (`apps/quarantine/<appName>/mitmproxy-ca`). Manuelle Secret-Erstellung ist NICHT mehr noetig.
+**CA-Keypair + mitmweb-Passwort:** Werden automatisch beim ersten ArgoCD-Sync durch einen Sync-Hook Job (Wave -5) generiert und in OpenBao gespeichert. Pfade: `apps/quarantine/<appName>/mitmproxy-ca` (CA) und `apps/quarantine/<appName>/mitmweb-password` (Passwort). Manuelle Secret-Erstellung ist NICHT noetig.
 
 **Authentik-Token:** Falls `authentik.enabled`: Der gemeinsame Token liegt unter `infra/authentik/api-token` (wird einmal zentral angelegt, nicht pro App).
+
+**Gemini API Key:** Falls `openclaw.enabled`: Der Key liegt unter `infra/google-ai` (shared, eso-read Policy).
 
 **Einmalige Cluster-Voraussetzungen** (bereits eingerichtet):
 - OpenBao K8s Auth Role `quarantine-setup` (SA `openbao-setup`, alle Namespaces)
@@ -164,6 +167,7 @@ Wenn `authentik.enabled`: PostSync-Job erstellt automatisch Proxy-Provider, Appl
 | `mitmproxy.proxyPort` | `8080` | mitmproxy Proxy Port |
 | `mitmproxy.webPort` | `8081` | mitmweb UI Port |
 | `mitmproxy.hostname` | auto | Default: `p-mitmweb-<appName>-k8s.sparafucile.net` |
+| `mitmproxy.openbaoPath` | auto | Default: `apps/quarantine/<appName>/mitmweb-password` |
 | `mitmproxy.storageClass` | `longhorn` | PVC StorageClass |
 
 ### CA-Zertifikat
@@ -173,6 +177,25 @@ Wenn `authentik.enabled`: PostSync-Job erstellt automatisch Proxy-Provider, Appl
 | `ca.enabled` | `true` | CA-Distribution aktivieren |
 | `ca.openbaoPath` | auto | Default: `apps/quarantine/<appName>/mitmproxy-ca` |
 | `ca.secretName` | `mitmproxy-ca` | K8s Secret Name |
+
+### OpenClaw AI-Agent
+
+| Parameter | Default | Beschreibung |
+|-----------|---------|-------------|
+| `openclaw.enabled` | `false` | OpenClaw aktivieren |
+| `openclaw.gatewayPort` | `18789` | Gateway Web-UI + API Port |
+| `openclaw.hostname` | auto | Default: `p-<appName>-openclaw-k8s.sparafucile.net` |
+| `openclaw.model` | `google/gemini-2.5-flash` | Primaeres AI-Modell |
+| `openclaw.gemini.enabled` | `true` | Gemini Provider aktivieren |
+| `openclaw.gemini.secretName` | `openclaw-gemini-key` | K8s Secret (via ExternalSecret) |
+| `openclaw.gemini.openbaoPath` | `infra/google-ai` | OpenBao-Pfad fuer Gemini API Key |
+
+**Wichtige Konfigurationsdetails:**
+- `gateway.bind` muss ein Named Mode sein (`lan`, `loopback`, `auto`), KEINE IP-Adresse
+- `controlUi.allowedOrigins` ist Pflicht wenn ueber externen Hostname zugegriffen wird
+- Gemini Provider braucht `baseUrl`, `apiKey`, `api` UND `models[]` Array (alle Pflicht)
+- Config wird per initContainer von ConfigMap auf PVC kopiert (subPath-Mounts sind immutable)
+- OpenClaw Auto-Migration aendert Config bei Startup, aber Aenderungen sind ephemeral (GitOps)
 
 ### Hello-World Debug-Pod
 
@@ -233,8 +256,9 @@ K8s NetworkPolicies erkennen Cilium-Identitaeten nicht. Daher zusaetzlich:
 | `cilium-policies.yaml` | 3-5 CiliumNetworkPolicies |
 | `squid.yaml` | ConfigMap, Deployment, Service |
 | `mitmproxy.yaml` | PVC, Deployment, Service |
-| `openbao-setup.yaml` | SA, ConfigMap (Python-Script), Sync-Hook Job (CA auto-gen, Wave -5) |
-| `external-secret.yaml` | ExternalSecret(s) (CA + opt. Authentik-Token) |
+| `openbao-setup.yaml` | SA, ConfigMap (Python-Script), Sync-Hook Job (CA + mitmweb-PW auto-gen, Wave -5) |
+| `external-secret.yaml` | ExternalSecret(s) (CA, mitmweb-PW + opt. Gemini-Key, Authentik-Token) |
+| `openclaw.yaml` | PVC, ConfigMap, Deployment, Service (optional) |
 | `mitmproxy-ca-distribution.yaml` | SA, RBAC, Script-CM, CronJob, PostSync-Job |
 | `httproutes.yaml` | HTTPRoutes (dynamisch aus services[]) |
 | `reference-grants.yaml` | ReferenceGrants (Gateway + opt. Authentik) |
@@ -268,19 +292,35 @@ OpenBao ist cluster-intern nur via HTTP erreichbar (`http://openbao.openbao.svc.
 
 Neue Ressourcen (z.B. CiliumNetworkPolicies) die als regulaere Sync-Ressourcen (NICHT als Hook) definiert sind, werden in der Sync-Phase deployed — BEVOR PostSync-Hooks laufen. Das loest das Chicken-and-Egg-Problem: CNP fuer den PostSync-Job muss eine regulaere Ressource sein, KEIN Hook.
 
-### OutOfSync bei ExternalSecrets und HTTPRoutes (kosmetisch)
+### OutOfSync bei ExternalSecrets und HTTPRoutes
 
-ServerSideApply erzeugt Diffs bei ExternalSecrets (ESO-Webhook ergaenzt Defaults) und HTTPRoutes (API-Server ergaenzt group/kind/weight). `ignoreDifferences` fuer HTTPRoutes ist konfiguriert, ExternalSecret-Diffs sind harmlos (Health: Healthy).
+ServerSideApply erzeugt Diffs bei ExternalSecrets (ESO-Webhook ergaenzt Defaults) und HTTPRoutes (API-Server ergaenzt group/kind/weight). Fix: Explizite Defaults in Templates setzen (ESO: `conversionStrategy: Default`, `decodingStrategy: None`, `metadataPolicy: None`, `creationPolicy: Owner`, `deletionPolicy: Retain`, `engineVersion: v2`, `mergePolicy: Replace`; HTTPRoute: `group: ""`, `kind: Service`, `weight: 1`). `ignoreDifferences` als Fallback konfiguriert.
+
+### OpenClaw gateway.bind: Named Modes verwenden
+
+`gateway.bind` akzeptiert NUR named modes (`lan`, `loopback`, `auto`, `custom`, `tailnet`). IP-Adressen wie `"0.0.0.0"` fuehren zum Crash mit "legacy bind mode" Fehler.
+
+### subPath ConfigMap-Mounts sind immutable
+
+OpenClaw auto-migriert seine Config via rename-Pattern (write temp → rename). subPath-Mounts unterstuetzen kein rename → EBUSY. Loesung: initContainer kopiert Config von ConfigMap-Volume auf PVC.
+
+### python:3.12-slim statt alpine fuer Jobs
+
+In Quarantine-Umgebungen kann `apk add` nicht funktionieren (Alpine-Repos nicht in Squid-ACL). `python:3.12-slim` (Debian bookworm) hat openssl vorinstalliert. Grundregel: Kein Paketmanager-Zugriff in Quarantine ohne explizites Whitelisting.
+
+### mitmweb Passwort-Management
+
+mitmweb generiert bei jedem Start ein zufaelliges Token. Fuer vorhersagbaren Zugang: Passwort in OpenBao generieren und via `--set web_password=$(MITMWEB_PASSWORD)` uebergeben (K8s env var substitution in args).
 
 ## Sync-Wave Ordering
 
 | Wave | Ressourcen | Grund |
 |------|-----------|-------|
 | -10 | Namespaces | Muessen existieren bevor Ressourcen darin deployed werden |
-| -5 | OpenBao-Setup (SA, ConfigMap, Job) | CA muss in OpenBao existieren bevor ExternalSecret synct |
+| -5 | OpenBao-Setup (SA, ConfigMap, Job) | CA + mitmweb-PW muessen in OpenBao existieren bevor ExternalSecrets syncen |
 | 0 | Alles andere (Default) | NetworkPolicies, Deployments, Services, ExternalSecrets |
 
-Der `openbao-ca-setup` Job (Wave -5) ist ein ArgoCD Sync-Hook (`argocd.argoproj.io/hook: Sync`). Er laeuft bei jedem Sync, prueft ob das CA-Keypair bereits existiert und erstellt es nur bei Bedarf. `hook-delete-policy: BeforeHookCreation` sorgt dafuer, dass alte Jobs vor dem naechsten Sync geloescht werden.
+Der `openbao-ca-setup` Job (Wave -5) ist ein ArgoCD Sync-Hook (`argocd.argoproj.io/hook: Sync`). Er laeuft bei jedem Sync, prueft ob CA-Keypair und mitmweb-Passwort bereits existieren und erstellt sie nur bei Bedarf. `hook-delete-policy: BeforeHookCreation` sorgt dafuer, dass alte Jobs vor dem naechsten Sync geloescht werden.
 
 **Achtung beim Loeschen:** Falls eine App geloescht wird waehrend der Hook-Job laeuft, kann die Loeschung blockiert werden (Finalizer haengt). Fix: Job manuell loeschen mit `kubectl delete job openbao-ca-setup -n <appName>-quarantine-gw`.
 
