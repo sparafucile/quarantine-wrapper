@@ -21,15 +21,24 @@ spec:
       containers:
         - name: curl-test
           image: python:3.12-slim
-          command: ["/bin/bash", "-c"]
+          command: ["python3", "-u", "-c"]
           args:
             - |
-              for i in $(seq 1 10); do
-                echo "=== Request $i ==="
-                curl -sS -o /dev/null -w "HTTP %{http_code} - %{url_effective} (%{time_total}s)\n" https://www.google.com 2>&1
-                sleep 3
-              done
-              echo "Done."
+              import urllib.request, time, os, ssl
+              ca = os.environ.get('SSL_CERT_FILE', '')
+              ctx = ssl.create_default_context(cafile=ca) if ca else ssl.create_default_context()
+              proxy = os.environ.get('https_proxy', '')
+              print(f'Proxy: {proxy}')
+              print(f'CA: {ca}')
+              handler = urllib.request.ProxyHandler({'https': proxy, 'http': os.environ.get('http_proxy','')})
+              opener = urllib.request.build_opener(handler, urllib.request.HTTPSHandler(context=ctx))
+              for i in range(1, 11):
+                  try:
+                      r = opener.open('https://www.google.com', timeout=10)
+                      print(f'Request {i}: HTTP {r.status}')
+                  except Exception as e:
+                      print(f'Request {i}: ERROR {e}')
+                  time.sleep(3)
           env:
             {{- include "quarantine-wrapper.proxyEnv" . | nindent 12 }}
           volumeMounts:
