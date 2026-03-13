@@ -55,6 +55,29 @@ spec:
         {{- end }}
 ---
 {{- if .Values.mitmproxy.enabled }}
+# Ingress: Quarantine-Pods duerfen mitmproxy als Proxy nutzen
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-from-quarantine-mitmproxy
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: mitmproxy-debug
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "quarantine-wrapper.appNamespace" . }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.mitmproxy.proxyPort }}
+---
 # Ingress: mitmweb UI (LAN + Gateway)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
