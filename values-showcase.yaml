@@ -1,0 +1,57 @@
+# ============================================================
+# Quarantine Showcase
+# Demonstriert den Quarantine-Wrapper mit OpenClaw AI-Agent
+# ============================================================
+
+appName: showcase
+
+# --- OpenClaw Gateway als externer Service ---
+services:
+  - name: openclaw
+    port: 18789
+    hostname: p-showcase-openclaw-k8s.sparafucile.net
+    authentik:
+      enabled: false
+
+# --- OpenClaw AI-Agent ---
+openclaw:
+  enabled: true
+  image:
+    repository: ghcr.io/openclaw/openclaw
+    tag: latest
+  gatewayPort: 18789
+  model: "google/gemini-2.5-flash"
+  storageClass: longhorn
+  storageSize: 5Gi
+  gemini:
+    enabled: true
+    secretName: openclaw-gemini-key
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+# --- mitmproxy (TLS-Interception) ---
+mitmproxy:
+  enabled: true
+  authentik:
+    enabled: false
+
+# --- CA-Zertifikat ---
+ca:
+  enabled: true
+
+# --- Hello-World Debug-Pod ---
+helloWorld:
+  enabled: true
+
+# --- Authentik: AUS fuer Showcase ---
+authentik:
+  enabled: false
+
+# --- Cilium ---
+cilium:
+  l7Visibility: false
