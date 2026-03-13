@@ -28,12 +28,18 @@ spec:
       backendRefs:
         {{- if and $.Values.authentik.enabled (and .authentik .authentik.enabled) }}
         # Authentik Proxy-Provider: Traffic geht zu Authentik, nach Auth weiter zum Backend
-        - name: authentik-server
+        - group: ""
+          kind: Service
+          name: authentik-server
           namespace: {{ $.Values.authentik.namespace }}
           port: 80
+          weight: 1
         {{- else }}
-        - name: {{ .name }}
+        - group: ""
+          kind: Service
+          name: {{ .name }}
           port: {{ .port }}
+          weight: 1
         {{- end }}
 {{- end }}
 
@@ -63,11 +69,17 @@ spec:
             value: /
       backendRefs:
         {{- if and .Values.authentik.enabled .Values.mitmproxy.authentik.enabled }}
-        - name: authentik-server
+        - group: ""
+          kind: Service
+          name: authentik-server
           namespace: {{ .Values.authentik.namespace }}
           port: 80
+          weight: 1
         {{- else }}
-        - name: mitmproxy
+        - group: ""
+          kind: Service
+          name: mitmproxy
           port: {{ .Values.mitmproxy.webPort }}
+          weight: 1
         {{- end }}
 {{- end }}

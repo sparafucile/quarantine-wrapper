@@ -36,7 +36,15 @@ data:
     {
       "gateway": {
         "port": {{ .Values.openclaw.gatewayPort }},
-        "bind": "0.0.0.0"
+        "bind": "lan",
+        "mode": "local",
+        "controlUi": {
+          "allowedOrigins": [
+            "http://localhost:{{ .Values.openclaw.gatewayPort }}",
+            "http://127.0.0.1:{{ .Values.openclaw.gatewayPort }}",
+            "https://{{ include "quarantine-wrapper.openclawHostname" . }}"
+          ]
+        }
       },
       "models": {
         "mode": "merge",

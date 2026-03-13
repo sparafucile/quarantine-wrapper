@@ -212,6 +212,9 @@ spec:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: hello-world
+        - group: ""
+          kind: Service
+          name: hello-world
           port: {{ .Values.helloWorld.port }}
+          weight: 1
 {{- end }}
