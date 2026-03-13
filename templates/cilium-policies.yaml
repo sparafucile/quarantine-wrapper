@@ -84,6 +84,44 @@ spec:
             - port: "{{ .Values.mitmproxy.webPort }}"
               protocol: TCP
             {{- end }}
+{{- if .Values.authentik.enabled }}
+---
+# --- Gateway-Namespace: Authentik-Setup Egress ---
+# Der PostSync-Job muss die Authentik-API erreichen um Provider/Applications zu erstellen.
+# K8s NetworkPolicies allein reichen nicht, weil Cilium den Traffic zur Service-ClusterIP
+# VOR dem DNAT evaluiert. CiliumNetworkPolicy mit toEndpoints matcht direkt auf Pod-Identity.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-authentik-setup-egress
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: authentik-setup
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: {{ .Values.authentik.namespace }}
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+{{- end }}
 ---
 {{- if .Values.ca.enabled }}
 # --- Gateway-Namespace: CA-Distributor K8s API-Server Zugriff ---
