@@ -3,12 +3,7 @@
 # ============================================================
 appName: test1
 
-services:
-  - name: web
-    port: 8080
-    hostname: p-test1-k8s.sparafucile.net
-    authentik:
-      enabled: false
+services: []
 
 egress:
   squidExtraDomains: []
