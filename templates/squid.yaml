@@ -16,15 +16,19 @@ data:
     acl SSL_ports port 443
     acl Safe_ports port 80 443 8080 8443
     acl CONNECT method CONNECT
-    {{- if .Values.egress.squidExtraDomains }}
+    {{- if .Values.egress.squidAllowedDomains }}
 
-    # Extra zugelassene Domains
-    acl extra_domains dstdomain {{ range .Values.egress.squidExtraDomains }}.{{ . }} {{ end }}
+    # Domain-Whitelist: NUR diese Domains sind erreichbar
+    acl allowed_domains dstdomain{{ range .Values.egress.squidAllowedDomains }} .{{ . }}{{ end }}
     {{- end }}
 
     http_access deny !Safe_ports
     http_access deny CONNECT !SSL_ports
+    {{- if .Values.egress.squidAllowedDomains }}
+    http_access allow quarantine_net allowed_domains
+    {{- else }}
     http_access allow quarantine_net
+    {{- end }}
     http_access deny all
 
     access_log daemon:/var/log/squid/access.log squid
@@ -54,6 +58,8 @@ spec:
         app: egress-proxy
         component: squid
         app.kubernetes.io/part-of: {{ .Values.appName }}-quarantine
+      annotations:
+        checksum/squid-config: {{ .Values.egress | toJson | sha256sum | trunc 8 }}
     spec:
       containers:
         - name: squid

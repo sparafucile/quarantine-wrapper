@@ -29,7 +29,12 @@ services: []
 # ============================================================
 egress:
   # Standard: Internet nur via Proxy, LAN/Pod-CIDR/Service-CIDR blockiert
-  squidExtraDomains: []        # Zusaetzliche Domains fuer Squid-ACL
+  squidAllowedDomains: []      # Domain-Whitelist fuer Squid (leer = alle erlaubt)
+  # Beispiel:
+  # squidAllowedDomains:
+  #   - generativelanguage.googleapis.com   # Google Gemini API
+  #   - api.openai.com                      # OpenAI API
+  #   - registry.npmjs.org                  # npm Registry
   extraEgressRules: []         # Zusaetzliche K8s NetworkPolicy egress rules
   # Beispiel extraEgressRules:
   # - to:
