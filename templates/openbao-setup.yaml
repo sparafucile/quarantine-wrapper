@@ -111,6 +111,9 @@ data:
         sys.exit(0)
 
     # --- 3. Generate CA keypair ---
+    print("\n--- Installing openssl ---")
+    subprocess.run(["apk", "add", "--no-cache", "openssl"],
+                   check=True, capture_output=True)
     print("\n--- Generating new CA keypair ---")
     subprocess.run([
         "openssl", "req", "-x509", "-newkey", "rsa:4096", "-days", "3650",
@@ -156,7 +159,7 @@ metadata:
     app.kubernetes.io/component: openbao-setup
 spec:
   backoffLimit: 3
-  activeDeadlineSeconds: 120
+  activeDeadlineSeconds: 300
   template:
     metadata:
       labels:
@@ -167,7 +170,7 @@ spec:
       containers:
         - name: setup
           image: {{ .Values.ca.distributorImage.repository }}:{{ .Values.ca.distributorImage.tag }}
-          command: ["sh", "-c", "apk add --no-cache openssl > /dev/null 2>&1 && python3 /scripts/setup-ca.py"]
+          command: ["python3", "/scripts/setup-ca.py"]
           volumeMounts:
             - name: script
               mountPath: /scripts
