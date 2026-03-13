@@ -52,6 +52,10 @@ helloWorld:
 authentik:
   enabled: false
 
+# --- Build ---
+build:
+  commit: "2142449"
+
 # --- Cilium ---
 cilium:
   l7Visibility: false
