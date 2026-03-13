@@ -40,3 +40,29 @@ spec:
     - group: ""
       kind: Service
 {{- end }}
+{{- if .Values.authentik.enabled }}
+---
+# Authentik-Namespace: Quarantine-HTTPRoutes duerfen authentik-server referenzieren
+# Noetig fuer Proxy-Provider Modus (HTTPRoute -> authentik-server -> Backend)
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-proxy-from-{{ .Values.appName }}-quarantine
+  namespace: {{ .Values.authentik.namespace }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+    {{- if .Values.mitmproxy.enabled }}
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+    {{- end }}
+  to:
+    - group: ""
+      kind: Service
+      name: authentik-server
+{{- end }}
