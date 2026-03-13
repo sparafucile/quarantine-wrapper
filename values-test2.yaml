@@ -1,0 +1,33 @@
+# ============================================================
+# Test-App 2: Quarantine-Wrapper MIT Authentik
+# ============================================================
+appName: test2
+
+services:
+  - name: web
+    port: 8080
+    hostname: p-test2-k8s.sparafucile.net
+    authentik:
+      enabled: true
+
+egress:
+  squidExtraDomains: []
+  extraEgressRules: []
+
+mitmproxy:
+  enabled: true
+  authentik:
+    enabled: true
+
+ca:
+  enabled: true
+
+helloWorld:
+  enabled: true
+
+authentik:
+  enabled: true
+  outpostPk: 1
+
+cilium:
+  l7Visibility: false
