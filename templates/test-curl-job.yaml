@@ -1,0 +1,46 @@
+{{- if .Values.helloWorld.enabled }}
+# Temporary test job - cycles through curl requests to verify proxy chain
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: proxy-chain-test
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        {{- include "quarantine-wrapper.caTrustInitContainer" . | nindent 8 }}
+      containers:
+        - name: curl-test
+          image: python:3.12-slim
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              for i in $(seq 1 10); do
+                echo "=== Request $i ==="
+                curl -sS -o /dev/null -w "HTTP %{http_code} - %{url_effective} (%{time_total}s)\n" https://www.google.com 2>&1
+                sleep 3
+              done
+              echo "Done."
+          env:
+            {{- include "quarantine-wrapper.proxyEnv" . | nindent 12 }}
+          volumeMounts:
+            {{- include "quarantine-wrapper.caTrustVolumeMounts" . | nindent 12 }}
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+      volumes:
+        {{- include "quarantine-wrapper.caTrustVolumes" . | nindent 8 }}
+{{- end }}
