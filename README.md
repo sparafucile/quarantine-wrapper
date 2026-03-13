@@ -6,7 +6,7 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 
 | Property | Value |
 |----------|-------|
-| **Chart** | quarantine-wrapper 1.4.0 |
+| **Chart** | quarantine-wrapper 1.5.0 |
 | **Type** | Infra-Chart (kein bjw-s) |
 | **Namespaces** | `<appName>-quarantine` + `<appName>-quarantine-gw` |
 | **Proxy-Kette** | App -> mitmproxy (:8080) -> Squid (:3128) -> Internet |
@@ -162,10 +162,10 @@ Wenn `authentik.enabled`: PostSync-Job erstellt automatisch Proxy-Provider, Appl
 
 | Parameter | Default | Beschreibung |
 |-----------|---------|-------------|
-| `egress.squidAllowedDomains` | `[]` | Domain-Whitelist fuer Squid (leer = alle erlaubt) |
+| `egress.squidAllowedDomains` | `[placeholder...]` | Domain-Whitelist fuer Squid (Default: Dummy-Domain, blockiert alles) |
 | `egress.extraEgressRules` | `[]` | Zusaetzliche K8s NetworkPolicy egress rules |
 
-Wenn `squidAllowedDomains` leer ist (Default), laesst Squid allen Traffic aus dem Quarantine-Namespace durch. Sobald mindestens eine Domain eingetragen wird, ist NUR noch Traffic zu diesen Domains erlaubt (echte Whitelist). Subdomains werden automatisch eingeschlossen (`.example.com` matcht auch `sub.example.com`).
+**WICHTIG:** Der Default-Wert enthaelt eine Dummy-Domain (`placeholder.quarantine.internal`), sodass Squid standardmaessig ALLES blockiert. Jede Instanz MUSS eigene Domains in ihrer Values-Datei eintragen. Eine leere Liste (`[]`) wuerde alles erlauben — das ist NICHT der Default. Subdomains werden automatisch eingeschlossen (`.example.com` matcht auch `sub.example.com`).
 
 ```yaml
 egress:
@@ -226,14 +226,15 @@ Die Proxy-Env-Vars (`http_proxy`, `https_proxy`, etc.) werden automatisch angepa
 - **default-deny** (Ingress + Egress)
 - **allow-intra-namespace** (Pod-zu-Pod)
 - **allow-dns** (CoreDNS)
-- **allow-egress-to-proxy** (Squid + mitmproxy im gw-Namespace)
+- **allow-egress-to-proxy** (bedingt: mitmproxy:8080 wenn enabled, sonst Squid:3128)
 - **allow-argocd-ingress** (ArgoCD Management)
 - **allow-lan-ingress** (LAN + kube-system + gateway-system, dynamische Ports)
 
 ### Gateway-Namespace (`<appName>-quarantine-gw`)
 
 - **default-deny** (Ingress + Egress)
-- **allow-ingress-from-quarantine** (App-Pods auf Proxy-Ports)
+- **allow-ingress-from-quarantine** (App-Pods auf Squid-Port)
+- **allow-ingress-from-quarantine-mitmproxy** (App-Pods auf mitmproxy-Port, wenn enabled)
 - **allow-mitmproxy-to-squid** (mitmproxy Egress zu Squid, upstream proxy chain)
 - **allow-squid-from-mitmproxy** (Squid Ingress von mitmproxy)
 - **allow-mitmweb-ui** (LAN + Gateway auf Web-UI)
@@ -326,6 +327,22 @@ mitmweb generiert bei jedem Start ein zufaelliges Token. Fuer vorhersagbaren Zug
 Der `openbao-ca-setup` Job (Wave -5) ist ein ArgoCD Sync-Hook (`argocd.argoproj.io/hook: Sync`). Er laeuft bei jedem Sync, prueft ob CA-Keypair und mitmweb-Passwort bereits existieren und erstellt sie nur bei Bedarf. `hook-delete-policy: BeforeHookCreation` sorgt dafuer, dass alte Jobs vor dem naechsten Sync geloescht werden.
 
 **Achtung beim Loeschen:** Falls eine App geloescht wird waehrend der Hook-Job laeuft, kann die Loeschung blockiert werden (Finalizer haengt). Fix: Job manuell loeschen mit `kubectl delete job openbao-ca-setup -n <appName>-quarantine-gw`.
+
+### CA Trust via cat statt update-ca-certificates (v1.5.0)
+
+alpine:3.21 (Basis-Image) hat `update-ca-certificates` NICHT vorinstalliert — es liegt im Paket `ca-certificates`, das erst via `apk add` installiert werden muesste. In Quarantine-Umgebungen ist `apk add` nicht moeglich (Alpine-Repos nicht gewhitelistet). Fix: `cat /etc/ssl/certs/ca-certificates.crt /ca-cert/mitmproxy-ca-cert.pem > /shared-certs/ca-certificates.crt`. Funktioniert mit JEDEM Image das `/etc/ssl/certs/ca-certificates.crt` hat (alpine, debian, ubuntu, python, node).
+
+### mitmproxy erwartet kombiniertes CA-File (v1.5.0)
+
+mitmproxy erwartet Key und Cert **kombiniert** in einer einzigen Datei `mitmproxy-ca.pem` im confdir (`/home/mitmproxy/.mitmproxy/`). Werden separate Dateien angelegt (`mitmproxy-ca-cert.pem` + `mitmproxy-ca.pem` nur mit Key), generiert mitmproxy beim Start eine NEUE CA — alle bestehenden CA-Bundles in Quarantine-Pods matchen dann nicht mehr. Fix: `cat key.pem cert.pem > mitmproxy-ca.pem` im initContainer.
+
+### Egress-NetworkPolicy muss zum aktiven Proxy zeigen (v1.5.0)
+
+Die `allow-egress-to-proxy` NetworkPolicy im Quarantine-Namespace muss den **ersten Hop** der Proxy-Kette targeten. Bei `mitmproxy.enabled: true` ist das `app: mitmproxy-debug` auf Port 8080, bei `false` ist es `app: egress-proxy` auf Port 3128. Zusaetzlich braucht der GW-Namespace eine eigene Ingress-Policy `allow-ingress-from-quarantine-mitmproxy` fuer mitmproxy.
+
+### Default-sichere Squid-Whitelist (v1.5.0)
+
+`egress.squidAllowedDomains` darf NIEMALS leer sein (`[]`), da eine leere ACL in Squid ALLES erlaubt. Default-Wert ist `placeholder.quarantine.internal` — eine nicht-existente Dummy-Domain, die effektiv allen Traffic blockiert. Echte Domains muessen explizit eingetragen werden.
 
 ## Abhaengigkeiten
 
