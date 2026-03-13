@@ -208,14 +208,15 @@ Proxy-Env-Vars für Quarantine-Pods.
 Wird als Container env-Block eingebunden.
 */}}
 {{- define "quarantine-wrapper.proxyEnv" -}}
+{{- $proxyHost := ternary (printf "mitmproxy.%s:%d" (include "quarantine-wrapper.gwNamespace" .) (.Values.mitmproxy.proxyPort | int)) (printf "squid.%s:%d" (include "quarantine-wrapper.gwNamespace" .) (.Values.squid.port | int)) .Values.mitmproxy.enabled -}}
 - name: http_proxy
-  value: {{ printf "http://mitmproxy.%s:8080" (include "quarantine-wrapper.gwNamespace" .) | quote }}
+  value: {{ printf "http://%s" $proxyHost | quote }}
 - name: https_proxy
-  value: {{ printf "http://mitmproxy.%s:8080" (include "quarantine-wrapper.gwNamespace" .) | quote }}
+  value: {{ printf "http://%s" $proxyHost | quote }}
 - name: HTTP_PROXY
-  value: {{ printf "http://mitmproxy.%s:8080" (include "quarantine-wrapper.gwNamespace" .) | quote }}
+  value: {{ printf "http://%s" $proxyHost | quote }}
 - name: HTTPS_PROXY
-  value: {{ printf "http://mitmproxy.%s:8080" (include "quarantine-wrapper.gwNamespace" .) | quote }}
+  value: {{ printf "http://%s" $proxyHost | quote }}
 - name: no_proxy
   value: {{ printf ".%s.svc,.%s.svc,%s" (include "quarantine-wrapper.appNamespace" .) (include "quarantine-wrapper.gwNamespace" .) .Values.network.serviceCIDR | quote }}
 - name: NO_PROXY
