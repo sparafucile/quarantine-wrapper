@@ -107,6 +107,23 @@ data:
         result = api_call("GET", f"/api/v3/core/applications/{slug}/")
         return result
 
+    # Flows laden (authorization + invalidation)
+    print("\n=== Loading Authentik Flows ===")
+    auth_flow = None
+    invalidation_flow = None
+    flows = api_call("GET", "/api/v3/flows/instances/?ordering=slug")
+    for f in flows.get("results", []):
+        designation = f.get("designation", "")
+        if designation == "authorization" and not auth_flow:
+            auth_flow = f["pk"]
+            print(f"  Authorization flow: {f['slug']} (pk={auth_flow})")
+        if designation == "invalidation" and not invalidation_flow:
+            invalidation_flow = f["pk"]
+            print(f"  Invalidation flow: {f['slug']} (pk={invalidation_flow})")
+    if not auth_flow or not invalidation_flow:
+        print("  ERROR: Could not find required flows!")
+        sys.exit(1)
+
     created_provider_pks = []
 
     for svc in SERVICES:
@@ -117,6 +134,8 @@ data:
         provider = find_provider(name)
         provider_data = {
             "name": name,
+            "authorization_flow": auth_flow,
+            "invalidation_flow": invalidation_flow,
             "external_host": svc["external_host"],
             "internal_host": svc["internal_host"],
             "mode": "proxy",
@@ -126,7 +145,6 @@ data:
 
         if provider:
             print(f"  Provider exists (pk={provider['pk']}), updating...")
-            provider_data["internal_host"] = svc["internal_host"]  # PATCH erfordert internal_host
             api_call("PATCH", f"/api/v3/providers/proxy/{provider['pk']}/", provider_data)
             provider_pk = provider["pk"]
         else:
