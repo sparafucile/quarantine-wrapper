@@ -182,4 +182,5 @@ rbac:
 # ============================================================
 build:
   number: "dev"
+  commit: ""               # Git short-hash, gesetzt von Jenkins oder manuell
   date: ""
