@@ -14,7 +14,6 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 | **CA** | Auto-generiert via OpenBao K8s Auth + ExternalSecret + CronJob-Distribution |
 | **mitmweb PW** | Auto-generiert via OpenBao, als `web_password` an mitmweb uebergeben |
 | **Auth** | Authentik Proxy-Provider (PostSync-Job, auto-discovery) |
-| **Apps** | OpenClaw AI-Agent (optional), Hello-World Debug-Pod (optional) |
 
 ## Architektur
 
@@ -61,8 +60,6 @@ helm lint . -f values-<appName>.yaml
 **CA-Keypair + mitmweb-Passwort:** Werden automatisch beim ersten ArgoCD-Sync durch einen Sync-Hook Job (Wave -5) generiert und in OpenBao gespeichert. Pfade: `apps/quarantine/<appName>/mitmproxy-ca` (CA) und `apps/quarantine/<appName>/mitmweb-password` (Passwort). Manuelle Secret-Erstellung ist NICHT noetig.
 
 **Authentik-Token:** Falls `authentik.enabled`: Der gemeinsame Token liegt unter `infra/authentik/api-token` (wird einmal zentral angelegt, nicht pro App).
-
-**Gemini API Key:** Falls `openclaw.enabled`: Der Key liegt unter `infra/google-ai` (shared, eso-read Policy).
 
 **Einmalige Cluster-Voraussetzungen** (bereits eingerichtet):
 - OpenBao K8s Auth Role `quarantine-setup` (SA `openbao-setup`, alle Namespaces)
@@ -178,25 +175,6 @@ Wenn `authentik.enabled`: PostSync-Job erstellt automatisch Proxy-Provider, Appl
 | `ca.openbaoPath` | auto | Default: `apps/quarantine/<appName>/mitmproxy-ca` |
 | `ca.secretName` | `mitmproxy-ca` | K8s Secret Name |
 
-### OpenClaw AI-Agent
-
-| Parameter | Default | Beschreibung |
-|-----------|---------|-------------|
-| `openclaw.enabled` | `false` | OpenClaw aktivieren |
-| `openclaw.gatewayPort` | `18789` | Gateway Web-UI + API Port |
-| `openclaw.hostname` | auto | Default: `p-<appName>-openclaw-k8s.sparafucile.net` |
-| `openclaw.model` | `google/gemini-2.5-flash` | Primaeres AI-Modell |
-| `openclaw.gemini.enabled` | `true` | Gemini Provider aktivieren |
-| `openclaw.gemini.secretName` | `openclaw-gemini-key` | K8s Secret (via ExternalSecret) |
-| `openclaw.gemini.openbaoPath` | `infra/google-ai` | OpenBao-Pfad fuer Gemini API Key |
-
-**Wichtige Konfigurationsdetails:**
-- `gateway.bind` muss ein Named Mode sein (`lan`, `loopback`, `auto`), KEINE IP-Adresse
-- `controlUi.allowedOrigins` ist Pflicht wenn ueber externen Hostname zugegriffen wird
-- Gemini Provider braucht `baseUrl`, `apiKey`, `api` UND `models[]` Array (alle Pflicht)
-- Config wird per initContainer von ConfigMap auf PVC kopiert (subPath-Mounts sind immutable)
-- OpenClaw Auto-Migration aendert Config bei Startup, aber Aenderungen sind ephemeral (GitOps)
-
 ### Hello-World Debug-Pod
 
 | Parameter | Default | Beschreibung |
@@ -257,8 +235,8 @@ K8s NetworkPolicies erkennen Cilium-Identitaeten nicht. Daher zusaetzlich:
 | `squid.yaml` | ConfigMap, Deployment, Service |
 | `mitmproxy.yaml` | PVC, Deployment, Service |
 | `openbao-setup.yaml` | SA, ConfigMap (Python-Script), Sync-Hook Job (CA + mitmweb-PW auto-gen, Wave -5) |
-| `external-secret.yaml` | ExternalSecret(s) (CA, mitmweb-PW + opt. Gemini-Key, Authentik-Token) |
-| `openclaw.yaml` | PVC, ConfigMap, Deployment, Service (optional) |
+| `external-secret.yaml` | ExternalSecret(s) (CA, mitmweb-PW + opt. App-Secrets, Authentik-Token) |
+| `openclaw.yaml` | App-spezifisches Template (optional, pro Instanz) |
 | `mitmproxy-ca-distribution.yaml` | SA, RBAC, Script-CM, CronJob, PostSync-Job |
 | `httproutes.yaml` | HTTPRoutes (dynamisch aus services[]) |
 | `reference-grants.yaml` | ReferenceGrants (Gateway + opt. Authentik) |
@@ -296,13 +274,9 @@ Neue Ressourcen (z.B. CiliumNetworkPolicies) die als regulaere Sync-Ressourcen (
 
 ServerSideApply erzeugt Diffs bei ExternalSecrets (ESO-Webhook ergaenzt Defaults) und HTTPRoutes (API-Server ergaenzt group/kind/weight). Fix: Explizite Defaults in Templates setzen (ESO: `conversionStrategy: Default`, `decodingStrategy: None`, `metadataPolicy: None`, `creationPolicy: Owner`, `deletionPolicy: Retain`, `engineVersion: v2`, `mergePolicy: Replace`; HTTPRoute: `group: ""`, `kind: Service`, `weight: 1`). `ignoreDifferences` als Fallback konfiguriert.
 
-### OpenClaw gateway.bind: Named Modes verwenden
-
-`gateway.bind` akzeptiert NUR named modes (`lan`, `loopback`, `auto`, `custom`, `tailnet`). IP-Adressen wie `"0.0.0.0"` fuehren zum Crash mit "legacy bind mode" Fehler.
-
 ### subPath ConfigMap-Mounts sind immutable
 
-OpenClaw auto-migriert seine Config via rename-Pattern (write temp → rename). subPath-Mounts unterstuetzen kein rename → EBUSY. Loesung: initContainer kopiert Config von ConfigMap-Volume auf PVC.
+Apps die ihre Config via rename-Pattern aktualisieren (write temp → rename) koennen subPath-Mounts nicht verwenden — rename fuehrt zu EBUSY. Loesung: initContainer kopiert Config von ConfigMap-Volume auf PVC, App-Container mountet nur das PVC-Verzeichnis.
 
 ### python:3.12-slim statt alpine fuer Jobs
 
