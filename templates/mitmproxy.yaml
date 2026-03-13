@@ -62,6 +62,8 @@ spec:
           image: {{ .Values.mitmproxy.image.repository }}:{{ .Values.mitmproxy.image.tag }}
           command: ["mitmweb"]
           args:
+            - "--mode"
+            - "upstream:http://squid:{{ .Values.squid.port }}/"
             - "--web-host"
             - "0.0.0.0"
             - "--web-port"

@@ -9,7 +9,7 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 | **Chart** | quarantine-wrapper 1.3.0 |
 | **Type** | Infra-Chart (kein bjw-s) |
 | **Namespaces** | `<appName>-quarantine` + `<appName>-quarantine-gw` |
-| **Proxy** | Squid (:3128) + mitmproxy (:8080/:8081) |
+| **Proxy-Kette** | App -> mitmproxy (:8080) -> Squid (:3128) -> Internet |
 | **Isolation** | NetworkPolicy + CiliumNetworkPolicy (default-deny) |
 | **CA** | Auto-generiert via OpenBao K8s Auth + ExternalSecret + CronJob-Distribution |
 | **mitmweb PW** | Auto-generiert via OpenBao, als `web_password` an mitmweb uebergeben |
@@ -29,14 +29,17 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 +--------------+-------------------------------------------+
 |              v                                           |
 |  <appName>-quarantine-gw (Namespace)                     |
-|  +--------------+  +--------------+                      |
-|  | Squid Proxy  |  | mitmproxy    |  <- CA aus OpenBao   |
-|  | :3128        |  | :8080/:8081  |                      |
-|  +------+-------+  +------+-------+                      |
-+---------+------------------+-----------------------------+
-          v                  v
-      Internet           mitmweb UI (opt. Authentik SSO)
+|  +--------------+     +--------------+                   |
+|  | mitmproxy    |---->| Squid Proxy  |  (Domain-Filter)  |
+|  | :8080/:8081  |     | :3128        |                   |
+|  | (upstream)   |     +------+-------+                   |
+|  +--------------+            |                           |
+|       |                      v                           |
+|   mitmweb UI            Internet                         |
++---------------------------------------------------------+
 ```
+
+**Proxy-Kette:** App-Pods nutzen mitmproxy als HTTP(S)-Proxy. mitmproxy laeuft im `upstream`-Modus und leitet allen Traffic an Squid weiter. Squid filtert nach Domain-Whitelist und leitet erlaubten Traffic ins Internet. Dadurch sind ALLE Requests (auch von Squid abgelehnte) in mitmweb sichtbar. Nur Squid hat Internet-Egress — mitmproxy kann das Internet nicht direkt erreichen.
 
 ## Deployment
 
@@ -226,11 +229,13 @@ Der Squid-Pod restartet automatisch bei Aenderungen an der Whitelist (Checksum-A
 
 - **default-deny** (Ingress + Egress)
 - **allow-ingress-from-quarantine** (App-Pods auf Proxy-Ports)
+- **allow-mitmproxy-to-squid** (mitmproxy Egress zu Squid, upstream proxy chain)
+- **allow-squid-from-mitmproxy** (Squid Ingress von mitmproxy)
 - **allow-mitmweb-ui** (LAN + Gateway auf Web-UI)
 - **allow-argocd-ingress** (ArgoCD Management)
 - **allow-dns** (CoreDNS)
 - **allow-ca-distributor-egress** (K8s API Defense-in-Depth)
-- **allow-internet-egress** (Internet minus LAN/Pod/Service-CIDR)
+- **allow-internet-egress** (Squid: Internet minus LAN/Pod/Service-CIDR)
 - **allow-authentik-egress** (wenn authentik.enabled: PostSync-Job zu Authentik)
 
 ### CiliumNetworkPolicies (KRITISCH)
