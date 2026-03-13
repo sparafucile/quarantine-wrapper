@@ -51,7 +51,20 @@ data:
         "providers": {
           {{- if .Values.openclaw.gemini.enabled }}
           "gemini": {
-            "apiKey": "${GEMINI_API_KEY}"
+            "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai/",
+            "apiKey": "${GEMINI_API_KEY}",
+            "api": "openai-completions",
+            "models": [
+              {
+                "id": "gemini-2.5-flash",
+                "name": "Gemini 2.5 Flash",
+                "reasoning": false,
+                "input": ["text"],
+                "cost": { "input": 0, "output": 0 },
+                "contextWindow": 1000000,
+                "maxTokens": 65536
+              }
+            ]
           }
           {{- end }}
         }
