@@ -6,7 +6,7 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 
 | Property | Value |
 |----------|-------|
-| **Chart** | quarantine-wrapper 1.0.0 |
+| **Chart** | quarantine-wrapper 1.3.0 |
 | **Type** | Infra-Chart (kein bjw-s) |
 | **Namespaces** | `<appName>-quarantine` + `<appName>-quarantine-gw` |
 | **Proxy** | Squid (:3128) + mitmproxy (:8080/:8081) |
@@ -154,6 +154,25 @@ Fuer jeden Service wird automatisch generiert: HTTPRoute, NetworkPolicy (Ingress
 | `authentik.openbaoPath` | auto | Default: `infra/authentik/api-token` (shared) |
 
 Wenn `authentik.enabled`: PostSync-Job erstellt automatisch Proxy-Provider, Applications und updated den Embedded Outpost. Flows (authorization + invalidation) werden auto-discovered via `/api/v3/flows/instances/`. Der Embedded Outpost wird ueber `/api/v3/outposts/instances/` gesucht (`type=proxy`).
+
+### Egress / Squid-Whitelist
+
+| Parameter | Default | Beschreibung |
+|-----------|---------|-------------|
+| `egress.squidAllowedDomains` | `[]` | Domain-Whitelist fuer Squid (leer = alle erlaubt) |
+| `egress.extraEgressRules` | `[]` | Zusaetzliche K8s NetworkPolicy egress rules |
+
+Wenn `squidAllowedDomains` leer ist (Default), laesst Squid allen Traffic aus dem Quarantine-Namespace durch. Sobald mindestens eine Domain eingetragen wird, ist NUR noch Traffic zu diesen Domains erlaubt (echte Whitelist). Subdomains werden automatisch eingeschlossen (`.example.com` matcht auch `sub.example.com`).
+
+```yaml
+egress:
+  squidAllowedDomains:
+    - generativelanguage.googleapis.com   # Google Gemini API
+    - api.openai.com                      # OpenAI API
+    - registry.npmjs.org                  # npm Registry
+```
+
+Der Squid-Pod restartet automatisch bei Aenderungen an der Whitelist (Checksum-Annotation).
 
 ### Proxy
 
