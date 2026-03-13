@@ -175,16 +175,37 @@ data:
 
     # 3. Embedded Outpost aktualisieren
     if created_provider_pks:
-        print(f"\n=== Updating Embedded Outpost (pk={OUTPOST_PK}) ===")
-        outpost = api_call("GET", f"/api/v3/outposts/instances/{OUTPOST_PK}/")
+        print(f"\n=== Updating Embedded Outpost ===")
+        # Auto-discover: Embedded Outpost finden
+        outpost = None
+        outpost_pk = None
+        # Erst per konfiguriertem PK versuchen
+        if OUTPOST_PK:
+            outpost = api_call("GET", f"/api/v3/outposts/instances/{OUTPOST_PK}/")
+            if outpost:
+                outpost_pk = OUTPOST_PK
+                print(f"  Found outpost by PK={OUTPOST_PK}: {outpost.get('name','?')}")
+        # Fallback: Alle Outposts durchsuchen, Embedded finden
+        if not outpost:
+            print(f"  Outpost PK={OUTPOST_PK} not found, searching for embedded outpost...")
+            all_outposts = api_call("GET", "/api/v3/outposts/instances/?ordering=name")
+            for o in all_outposts.get("results", []):
+                print(f"    Found: {o['name']} (pk={o['pk']}, type={o.get('type','?')})")
+                if "embedded" in o.get("name", "").lower() or o.get("type") == "proxy":
+                    outpost = o
+                    outpost_pk = o["pk"]
+                    print(f"  Using outpost: {o['name']} (pk={outpost_pk})")
+                    break
         if outpost:
             current_providers = outpost.get("providers", [])
             # Merge: bestehende Provider behalten, neue hinzufuegen
             all_providers = list(set(current_providers + created_provider_pks))
-            api_call("PATCH", f"/api/v3/outposts/instances/{OUTPOST_PK}/", {
+            api_call("PATCH", f"/api/v3/outposts/instances/{outpost_pk}/", {
                 "providers": all_providers,
             })
             print(f"  Outpost updated: {len(current_providers)} -> {len(all_providers)} providers")
+        else:
+            print("  WARNING: No suitable outpost found! Providers created but not assigned to outpost.")
 
     print("\n=== Authentik setup complete ===")
 ---
