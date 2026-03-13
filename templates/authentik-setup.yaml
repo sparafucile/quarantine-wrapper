@@ -64,10 +64,11 @@ data:
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
         try:
             resp = urllib.request.urlopen(req, context=ctx)
-            return json.loads(resp.read()) if resp.read() else {}
+            resp_body = resp.read()
+            return json.loads(resp_body) if resp_body else {}
         except urllib.error.HTTPError as e:
-            body = e.read().decode()
-            print(f"  ERROR {e.code}: {body}")
+            err_body = e.read().decode()
+            print(f"  ERROR {e.code}: {err_body}")
             if e.code == 404:
                 return None
             raise
