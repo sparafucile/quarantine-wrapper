@@ -6,7 +6,7 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 
 | Property | Value |
 |----------|-------|
-| **Chart** | quarantine-wrapper 1.3.0 |
+| **Chart** | quarantine-wrapper 1.4.0 |
 | **Type** | Infra-Chart (kein bjw-s) |
 | **Namespaces** | `<appName>-quarantine` + `<appName>-quarantine-gw` |
 | **Proxy-Kette** | App -> mitmproxy (:8080) -> Squid (:3128) -> Internet |
