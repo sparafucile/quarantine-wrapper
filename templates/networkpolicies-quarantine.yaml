@@ -1,0 +1,153 @@
+# ============================================================================
+# NetworkPolicies fuer den App-Namespace (<appName>-quarantine)
+# ============================================================================
+
+# Default-Deny: Blockiert JEGLICHEN Ingress und Egress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+---
+# Pod-zu-Pod innerhalb des App-Namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}
+---
+# DNS (CoreDNS in kube-system)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Egress zum Proxy-Gateway (Squid + mitmproxy)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-proxy
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "quarantine-wrapper.gwNamespace" . }}
+          podSelector:
+            matchLabels:
+              app: egress-proxy
+      ports:
+        - protocol: TCP
+          port: {{ .Values.squid.port }}
+        {{- if .Values.mitmproxy.enabled }}
+        - protocol: TCP
+          port: {{ .Values.mitmproxy.proxyPort }}
+        {{- end }}
+---
+# ArgoCD Ingress (fuer App-Management)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argocd-ingress
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd
+---
+# LAN + kube-system + gateway-system Ingress
+# Ports werden dynamisch aus services[] generiert
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-lan-ingress
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: {{ .Values.network.lanCIDR }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: gateway-system
+      ports:
+        {{- range .Values.services }}
+        - protocol: TCP
+          port: {{ .port }}
+        {{- end }}
+        {{- if .Values.helloWorld.enabled }}
+        - protocol: TCP
+          port: {{ .Values.helloWorld.port }}
+        {{- end }}

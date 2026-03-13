@@ -1,0 +1,197 @@
+{{- if .Values.authentik.enabled }}
+# ============================================================================
+# Authentik-Setup PostSync-Job
+# ============================================================================
+# Erstellt/aktualisiert idempotent:
+# - Proxy-Provider fuer jeden Service mit authentik.enabled: true
+# - Proxy-Provider fuer mitmweb (wenn mitmproxy.authentik.enabled: true)
+# - Application pro Provider (Gruppe: Quarantine)
+# - PATCH des Embedded Outpost (providers-Array aktualisieren)
+# ============================================================================
+
+# --- ConfigMap mit dem Python-Script ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-setup-script
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+data:
+  setup-authentik.py: |
+    #!/usr/bin/env python3
+    """Idempotent Authentik Proxy-Provider + Application Setup.
+    Laeuft als PostSync-Job nach jedem ArgoCD Sync."""
+    import urllib.request, json, ssl, os, sys
+
+    AUTHENTIK_URL = os.environ.get("AUTHENTIK_URL", "http://authentik-server.authentik.svc.p-k8s-cluster.local")
+    API_TOKEN = os.environ["AUTHENTIK_TOKEN"]
+    OUTPOST_PK = int(os.environ.get("OUTPOST_PK", "{{ .Values.authentik.outpostPk }}"))
+
+    # Service-Definitionen (aus Helm Values generiert)
+    SERVICES = [
+    {{- range .Values.services }}
+    {{- if and .authentik .authentik.enabled }}
+        {
+            "name": "{{ $.Values.appName }}-{{ .name }}",
+            "external_host": "https://{{ .hostname }}",
+            "internal_host": "http://{{ .name }}.{{ include "quarantine-wrapper.appNamespace" $ }}.svc.p-k8s-cluster.local:{{ .port }}",
+            "skip_path_regex": {{ if .authentik.skipPathRegex }}"{{ .authentik.skipPathRegex }}"{{ else }}""{{ end }},
+        },
+    {{- end }}
+    {{- end }}
+    {{- if and .Values.mitmproxy.enabled .Values.mitmproxy.authentik.enabled }}
+        {
+            "name": "{{ .Values.appName }}-mitmweb",
+            "external_host": "https://{{ include "quarantine-wrapper.mitmwebHostname" . }}",
+            "internal_host": "http://mitmproxy.{{ include "quarantine-wrapper.gwNamespace" . }}.svc.p-k8s-cluster.local:{{ .Values.mitmproxy.webPort }}",
+            "skip_path_regex": "",
+        },
+    {{- end }}
+    ]
+
+    headers = {
+        "Authorization": f"Bearer {API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    def api_call(method, path, data=None):
+        url = f"{AUTHENTIK_URL}{path}"
+        body = json.dumps(data).encode() if data else None
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+        try:
+            resp = urllib.request.urlopen(req, context=ctx)
+            return json.loads(resp.read()) if resp.read() else {}
+        except urllib.error.HTTPError as e:
+            body = e.read().decode()
+            print(f"  ERROR {e.code}: {body}")
+            if e.code == 404:
+                return None
+            raise
+
+    def find_provider(name):
+        result = api_call("GET", f"/api/v3/providers/proxy/?search={name}")
+        for p in result.get("results", []):
+            if p["name"] == name:
+                return p
+        return None
+
+    def find_application(slug):
+        result = api_call("GET", f"/api/v3/core/applications/{slug}/")
+        return result
+
+    created_provider_pks = []
+
+    for svc in SERVICES:
+        name = svc["name"]
+        print(f"\n=== Processing: {name} ===")
+
+        # 1. Provider erstellen/aktualisieren
+        provider = find_provider(name)
+        provider_data = {
+            "name": name,
+            "external_host": svc["external_host"],
+            "internal_host": svc["internal_host"],
+            "mode": "proxy",
+        }
+        if svc["skip_path_regex"]:
+            provider_data["skip_path_regex"] = svc["skip_path_regex"]
+
+        if provider:
+            print(f"  Provider exists (pk={provider['pk']}), updating...")
+            provider_data["internal_host"] = svc["internal_host"]  # PATCH erfordert internal_host
+            api_call("PATCH", f"/api/v3/providers/proxy/{provider['pk']}/", provider_data)
+            provider_pk = provider["pk"]
+        else:
+            print(f"  Creating provider...")
+            result = api_call("POST", "/api/v3/providers/proxy/", provider_data)
+            provider_pk = result["pk"]
+            print(f"  Created provider (pk={provider_pk})")
+
+        created_provider_pks.append(provider_pk)
+
+        # 2. Application erstellen/aktualisieren
+        slug = name
+        app = find_application(slug)
+        app_data = {
+            "name": name,
+            "slug": slug,
+            "provider": provider_pk,
+            "group": "Quarantine",
+        }
+
+        if app:
+            print(f"  Application exists, updating...")
+            api_call("PATCH", f"/api/v3/core/applications/{slug}/", app_data)
+        else:
+            print(f"  Creating application...")
+            api_call("POST", "/api/v3/core/applications/", app_data)
+            print(f"  Created application: {slug}")
+
+    # 3. Embedded Outpost aktualisieren
+    if created_provider_pks:
+        print(f"\n=== Updating Embedded Outpost (pk={OUTPOST_PK}) ===")
+        outpost = api_call("GET", f"/api/v3/outposts/instances/{OUTPOST_PK}/")
+        if outpost:
+            current_providers = outpost.get("providers", [])
+            # Merge: bestehende Provider behalten, neue hinzufuegen
+            all_providers = list(set(current_providers + created_provider_pks))
+            api_call("PATCH", f"/api/v3/outposts/instances/{OUTPOST_PK}/", {
+                "providers": all_providers,
+            })
+            print(f"  Outpost updated: {len(current_providers)} -> {len(all_providers)} providers")
+
+    print("\n=== Authentik setup complete ===")
+---
+# --- PostSync-Job ---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: authentik-setup
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    app.kubernetes.io/component: authentik-setup
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 120
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: authentik-setup
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: setup
+          image: {{ .Values.ca.distributorImage.repository }}:{{ .Values.ca.distributorImage.tag }}
+          command: ["python3", "/scripts/setup-authentik.py"]
+          env:
+            - name: AUTHENTIK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.authentik.apiTokenSecret | default "authentik-api-token" }}
+                  key: token
+            - name: OUTPOST_PK
+              value: "{{ .Values.authentik.outpostPk }}"
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
+      volumes:
+        - name: script
+          configMap:
+            name: authentik-setup-script
+{{- end }}

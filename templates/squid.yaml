@@ -1,0 +1,110 @@
+# ============================================================================
+# Squid HTTP-Proxy (im Gateway-Namespace)
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: squid-config
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+data:
+  squid.conf: |
+    http_port {{ .Values.squid.port }}
+
+    acl quarantine_net src {{ .Values.network.podCIDR }}
+    acl SSL_ports port 443
+    acl Safe_ports port 80 443 8080 8443
+    acl CONNECT method CONNECT
+    {{- if .Values.egress.squidExtraDomains }}
+
+    # Extra zugelassene Domains
+    acl extra_domains dstdomain {{ range .Values.egress.squidExtraDomains }}.{{ . }} {{ end }}
+    {{- end }}
+
+    http_access deny !Safe_ports
+    http_access deny CONNECT !SSL_ports
+    http_access allow quarantine_net
+    http_access deny all
+
+    access_log daemon:/var/log/squid/access.log squid
+    cache_log /var/log/squid/cache.log
+    cache_dir ufs /var/spool/squid 1000 16 256
+    maximum_object_size 512 MB
+    dns_nameservers {{ .Values.network.coreDNSClusterIP }}
+    connect_timeout 30 seconds
+    read_timeout 60 seconds
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: squid-proxy
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: egress-proxy
+      component: squid
+  template:
+    metadata:
+      labels:
+        app: egress-proxy
+        component: squid
+        app.kubernetes.io/part-of: {{ .Values.appName }}-quarantine
+    spec:
+      containers:
+        - name: squid
+          image: {{ .Values.squid.image.repository }}:{{ .Values.squid.image.tag }}
+          ports:
+            - containerPort: {{ .Values.squid.port }}
+              name: proxy
+          volumeMounts:
+            - name: squid-config
+              mountPath: /etc/squid/squid.conf
+              subPath: squid.conf
+            - name: squid-cache
+              mountPath: /var/spool/squid
+            - name: squid-logs
+              mountPath: /var/log/squid
+          resources:
+            {{- toYaml .Values.squid.resources | nindent 12 }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.squid.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.squid.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: squid-config
+          configMap:
+            name: squid-config
+        - name: squid-cache
+          emptyDir:
+            sizeLimit: 2Gi
+        - name: squid-logs
+          emptyDir:
+            sizeLimit: 500Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: squid
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    app: egress-proxy
+spec:
+  selector:
+    app: egress-proxy
+    component: squid
+  ports:
+    - port: {{ .Values.squid.port }}
+      targetPort: {{ .Values.squid.port }}
+      name: proxy

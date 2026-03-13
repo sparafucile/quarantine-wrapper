@@ -1,0 +1,42 @@
+# ============================================================================
+# ReferenceGrants
+# ============================================================================
+# Erlauben dem Gateway in gateway-system den Zugriff auf Services in den
+# Quarantine-Namespaces. Ohne diese Grants: HTTPRoute ResolvedRefs=False.
+# ============================================================================
+
+# App-Namespace: Gateway darf auf App-Services zugreifen
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-gateway-to-{{ .Values.appName }}-quarantine
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: {{ .Values.gateway.namespace }}
+  to:
+    - group: ""
+      kind: Service
+{{- if .Values.mitmproxy.enabled }}
+---
+# Gateway-Namespace: Gateway darf auf mitmweb-Service zugreifen
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-gateway-to-{{ .Values.appName }}-quarantine-gw
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: {{ .Values.gateway.namespace }}
+  to:
+    - group: ""
+      kind: Service
+{{- end }}

@@ -1,0 +1,238 @@
+{{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
+# ============================================================================
+# mitmproxy CA-Zertifikat Verteilung
+# ============================================================================
+# 1. ExternalSecret synct CA-Keypair aus OpenBao in K8s Secret (gw-Namespace)
+# 2. CronJob liest Public-Cert aus Secret, schreibt es in ConfigMap (app-Namespace)
+# 3. Quarantine-Pods mounten ConfigMap + initContainer: update-ca-certificates
+# ============================================================================
+
+# --- ConfigMap mit dem oeffentlichen CA-Zertifikat im App-Namespace ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mitmproxy-ca-cert
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ca-distribution
+data: {}
+---
+# --- ServiceAccount fuer den CA-Copy-Job ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ca-distributor
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+---
+# --- Role: darf das Secret im gw-Namespace lesen ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ca-secret-reader
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ .Values.ca.secretName | quote }}]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ca-distributor-read
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+subjects:
+  - kind: ServiceAccount
+    name: ca-distributor
+    namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+roleRef:
+  kind: Role
+  name: ca-secret-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+# --- Role: darf die ConfigMap im App-Namespace schreiben ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ca-configmap-writer
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["mitmproxy-ca-cert"]
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ca-distributor-write
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+subjects:
+  - kind: ServiceAccount
+    name: ca-distributor
+    namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+roleRef:
+  kind: Role
+  name: ca-configmap-writer
+  apiGroup: rbac.authorization.k8s.io
+---
+# --- ConfigMap mit dem Python-Script fuer die CA-Verteilung ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ca-distributor-script
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+data:
+  distribute-ca.py: |
+    #!/usr/bin/env python3
+    """Liest das mitmproxy-CA-Cert aus einem K8s Secret und schreibt es
+    in eine ConfigMap im App-Namespace. Nutzt den SA-Token."""
+    import urllib.request, json, ssl, base64, sys, time
+
+    API = "https://kubernetes.default.svc"
+    TOKEN_FILE = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    CA_FILE = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+
+    SECRET_NS = "{{ include "quarantine-wrapper.gwNamespace" . }}"
+    SECRET_NAME = "{{ .Values.ca.secretName }}"
+    CM_NS = "{{ include "quarantine-wrapper.appNamespace" . }}"
+    CM_NAME = "mitmproxy-ca-cert"
+    CERT_KEY = "mitmproxy-ca-cert.pem"
+
+    with open(TOKEN_FILE) as f:
+        token = f.read().strip()
+    ctx = ssl.create_default_context(cafile=CA_FILE)
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    def api_get(path):
+        req = urllib.request.Request(API + path, headers=headers)
+        return json.loads(urllib.request.urlopen(req, context=ctx).read())
+
+    def api_patch(path, data):
+        body = json.dumps(data).encode()
+        req = urllib.request.Request(API + path, data=body, headers=headers, method="PATCH")
+        req.add_header("Content-Type", "application/strategic-merge-patch+json")
+        return json.loads(urllib.request.urlopen(req, context=ctx).read())
+
+    # Warte bis Secret existiert (max 2 Min)
+    for attempt in range(24):
+        try:
+            secret = api_get(f"/api/v1/namespaces/{SECRET_NS}/secrets/{SECRET_NAME}")
+            break
+        except urllib.error.HTTPError as e:
+            if e.code == 404 and attempt < 23:
+                print(f"Attempt {attempt+1}: Secret not found, waiting 5s...")
+                time.sleep(5)
+            else:
+                raise
+    else:
+        print("ERROR: Secret not found after 2 minutes")
+        sys.exit(1)
+
+    cert_b64 = secret["data"].get(CERT_KEY, "")
+    if not cert_b64:
+        print(f"ERROR: Key '{CERT_KEY}' not found in Secret")
+        sys.exit(1)
+
+    cert_pem = base64.b64decode(cert_b64).decode()
+    print(f"Read CA cert ({len(cert_pem)} bytes) from Secret {SECRET_NAME}")
+
+    # ConfigMap patchen
+    patch = {"data": {CERT_KEY: cert_pem}}
+    api_patch(f"/api/v1/namespaces/{CM_NS}/configmaps/{CM_NAME}", patch)
+    print(f"Updated ConfigMap {CM_NAME} in {CM_NS}")
+---
+# --- CronJob: Kopiert CA-Cert vom Secret in die ConfigMap (alle 6h) ---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ca-cert-distributor
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ca-distribution
+spec:
+  schedule: "0 */6 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/component: ca-distribution
+    spec:
+      backoffLimit: 3
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: ca-distribution
+        spec:
+          serviceAccountName: ca-distributor
+          restartPolicy: OnFailure
+          containers:
+            - name: distribute
+              image: {{ .Values.ca.distributorImage.repository }}:{{ .Values.ca.distributorImage.tag }}
+              command: ["python3", "/scripts/distribute-ca.py"]
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  memory: "32Mi"
+                  cpu: "10m"
+                limits:
+                  memory: "64Mi"
+                  cpu: "100m"
+          volumes:
+            - name: script
+              configMap:
+                name: ca-distributor-script
+---
+# --- Job: Einmaliger initialer CA-Copy beim Deployment ---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ca-cert-initial-copy
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ca-distribution
+spec:
+  backoffLimit: 5
+  activeDeadlineSeconds: 120
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: ca-distribution
+    spec:
+      serviceAccountName: ca-distributor
+      restartPolicy: OnFailure
+      containers:
+        - name: distribute
+          image: {{ .Values.ca.distributorImage.repository }}:{{ .Values.ca.distributorImage.tag }}
+          command: ["python3", "/scripts/distribute-ca.py"]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
+      volumes:
+        - name: script
+          configMap:
+            name: ca-distributor-script
+{{- end }}

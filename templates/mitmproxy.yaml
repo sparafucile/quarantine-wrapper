@@ -1,0 +1,121 @@
+{{- if .Values.mitmproxy.enabled }}
+# ============================================================================
+# mitmproxy/mitmweb (im Gateway-Namespace)
+# Debug-Proxy mit TLS-Interception und Web-UI
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mitmproxy-certs
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    recurring-job-group.longhorn.io/default: enabled
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.mitmproxy.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.mitmproxy.storageSize }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mitmproxy-debug
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mitmproxy-debug
+  template:
+    metadata:
+      labels:
+        app: mitmproxy-debug
+        app.kubernetes.io/part-of: {{ .Values.appName }}-quarantine
+    spec:
+      {{- if .Values.ca.enabled }}
+      initContainers:
+        # Kopiert das vordefinierte CA-Keypair in das mitmproxy-Datenverzeichnis
+        - name: install-ca
+          image: {{ .Values.ca.initImage.repository }}:{{ .Values.ca.initImage.tag }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Installing pre-defined CA keypair for mitmproxy..."
+              cp /ca-secret/mitmproxy-ca-cert.pem /mitmproxy-home/mitmproxy-ca-cert.pem
+              cp /ca-secret/mitmproxy-ca-key.pem /mitmproxy-home/mitmproxy-ca-key.pem
+              echo "CA keypair installed."
+          volumeMounts:
+            - name: ca-secret
+              mountPath: /ca-secret
+              readOnly: true
+            - name: mitmproxy-data
+              mountPath: /mitmproxy-home
+      {{- end }}
+      containers:
+        - name: mitmweb
+          image: {{ .Values.mitmproxy.image.repository }}:{{ .Values.mitmproxy.image.tag }}
+          command: ["mitmweb"]
+          args:
+            - "--web-host"
+            - "0.0.0.0"
+            - "--web-port"
+            - "{{ .Values.mitmproxy.webPort }}"
+            - "--listen-host"
+            - "0.0.0.0"
+            - "--listen-port"
+            - "{{ .Values.mitmproxy.proxyPort }}"
+            - "--set"
+            - "block_global=false"
+            {{- if .Values.ca.enabled }}
+            - "--set"
+            - "confdir=/home/mitmproxy/.mitmproxy"
+            {{- end }}
+          ports:
+            - containerPort: {{ .Values.mitmproxy.proxyPort }}
+              name: proxy
+            - containerPort: {{ .Values.mitmproxy.webPort }}
+              name: web-ui
+          volumeMounts:
+            - name: mitmproxy-data
+              mountPath: /home/mitmproxy/.mitmproxy
+            - name: flow-data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.mitmproxy.resources | nindent 12 }}
+      volumes:
+        {{- if .Values.ca.enabled }}
+        - name: ca-secret
+          secret:
+            secretName: {{ .Values.ca.secretName }}
+        {{- end }}
+        - name: mitmproxy-data
+          persistentVolumeClaim:
+            claimName: mitmproxy-certs
+        - name: flow-data
+          emptyDir:
+            sizeLimit: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mitmproxy
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  selector:
+    app: mitmproxy-debug
+  ports:
+    - port: {{ .Values.mitmproxy.proxyPort }}
+      targetPort: {{ .Values.mitmproxy.proxyPort }}
+      name: proxy
+    - port: {{ .Values.mitmproxy.webPort }}
+      targetPort: {{ .Values.mitmproxy.webPort }}
+      name: web-ui
+{{- end }}

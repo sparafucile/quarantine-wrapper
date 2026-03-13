@@ -1,0 +1,38 @@
+{{- if .Values.rbac.enabled }}
+# ============================================================================
+# RBAC: Quarantine-Workloads
+# ============================================================================
+# Default-SA im App-Namespace darf KEINE NetworkPolicies aendern.
+# Nur lesender Zugriff auf Basisressourcen.
+# ============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: quarantine-workload
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: quarantine-workload-binding
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: quarantine-workload
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+{{- end }}

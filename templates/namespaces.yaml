@@ -1,0 +1,17 @@
+# App-Namespace: Isolierte Workloads
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+    network-zone: quarantine
+---
+# Gateway-Namespace: Proxy-Stack (Squid, mitmproxy, CA-Distribution)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    network-zone: quarantine-gateway

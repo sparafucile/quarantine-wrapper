@@ -1,0 +1,159 @@
+# ============================================================
+# Quarantine-Wrapper Helm Values
+# Generischer Wrapper fuer isolierte Quarantine-Umgebungen
+# ============================================================
+
+# ============================================================
+# PFLICHT: App-Name (steuert alle dynamischen Namen)
+# ============================================================
+appName: ""                    # z.B. "openclaw" -> openclaw-quarantine + openclaw-quarantine-gw
+
+# ============================================================
+# INGRESS: App-Services
+# ============================================================
+# Fuer jeden Service wird automatisch erstellt:
+# - NetworkPolicy (Ingress-Freigabe auf den Port)
+# - CiliumNetworkPolicy (fromEntities: ingress)
+# - HTTPRoute (Gateway API)
+# - Optional: Authentik Proxy-Provider + Application
+services: []
+  # - name: web                  # Service-Name (muss dem K8s Service in der App matchen)
+  #   port: 8080
+  #   hostname: p-openclaw-k8s.sparafucile.net
+  #   authentik:
+  #     enabled: true            # Authentik SSO fuer diesen Service
+  #     skipPathRegex: ""        # API-Bypass Pattern
+
+# ============================================================
+# EGRESS: Konfigurierbar
+# ============================================================
+egress:
+  # Standard: Internet nur via Proxy, LAN/Pod-CIDR/Service-CIDR blockiert
+  squidExtraDomains: []        # Zusaetzliche Domains fuer Squid-ACL
+  extraEgressRules: []         # Zusaetzliche K8s NetworkPolicy egress rules
+  # Beispiel extraEgressRules:
+  # - to:
+  #     - ipBlock:
+  #         cidr: 10.0.0.0/8
+  #   ports:
+  #     - port: 5432
+  #       protocol: TCP
+
+# ============================================================
+# PROXY: Squid
+# ============================================================
+squid:
+  image:
+    repository: ubuntu/squid
+    tag: latest
+  port: 3128
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# ============================================================
+# PROXY: mitmproxy (Debug-Proxy mit TLS-Interception)
+# ============================================================
+mitmproxy:
+  enabled: true
+  image:
+    repository: mitmproxy/mitmproxy
+    tag: latest
+  proxyPort: 8080
+  webPort: 8081
+  hostname: ""                 # Default: p-mitmweb-<appName>-k8s.sparafucile.net
+  storageClass: longhorn
+  storageSize: 100Mi
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  authentik:
+    enabled: true              # mitmweb hinter Authentik
+
+# ============================================================
+# CA-ZERTIFIKAT (mitmproxy TLS-Interception)
+# ============================================================
+ca:
+  enabled: true
+  openbaoPath: ""              # Default: apps/quarantine/<appName>/mitmproxy-ca
+  secretName: mitmproxy-ca     # Name des K8s Secret im gw-Namespace
+  distributorImage:
+    repository: python
+    tag: "3.12-alpine"
+  initImage:
+    repository: alpine
+    tag: "3.21"
+
+# ============================================================
+# HELLO-WORLD DEBUG-POD (standardmaessig AUS)
+# ============================================================
+helloWorld:
+  enabled: false
+  image:
+    repository: nginx
+    tag: "1.27-alpine"
+  port: 8080
+  hostname: ""                 # Default: p-<appName>-hello-k8s.sparafucile.net
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "10m"
+    limits:
+      memory: "64Mi"
+      cpu: "100m"
+
+# ============================================================
+# NETZWERK (Cluster-spezifisch, selten zu aendern)
+# ============================================================
+network:
+  lanCIDR: "192.168.4.0/24"
+  podCIDR: "10.244.0.0/16"
+  serviceCIDR: "10.32.0.0/12"
+  coreDNSClusterIP: "10.32.0.10"
+
+# ============================================================
+# GATEWAY (Cilium Gateway API)
+# ============================================================
+gateway:
+  name: cluster-gateway
+  namespace: gateway-system
+  sectionName: https-wildcard
+  domain: sparafucile.net
+
+# ============================================================
+# AUTHENTIK SSO
+# ============================================================
+authentik:
+  enabled: true
+  namespace: authentik
+  # API-Credentials fuer automatische Provider-Erstellung (Phase 5)
+  apiTokenSecret: ""           # K8s Secret mit Authentik API-Token (Default: authentik-api-token)
+  openbaoPath: ""              # Default: apps/quarantine/<appName>/authentik-token
+  outpostPk: 1                 # Primary Key des Embedded Outpost
+
+# ============================================================
+# CILIUM
+# ============================================================
+cilium:
+  l7Visibility: true
+
+# ============================================================
+# RBAC (Quarantine-Workloads)
+# ============================================================
+rbac:
+  enabled: true
+
+# ============================================================
+# BUILD (Jenkins Pipeline)
+# ============================================================
+build:
+  number: "dev"
+  date: ""

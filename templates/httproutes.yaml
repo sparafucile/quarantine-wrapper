@@ -1,0 +1,73 @@
+# ============================================================================
+# HTTPRoutes (dynamisch aus services[] generiert)
+# ============================================================================
+
+{{- range .Values.services }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $.Values.appName }}-{{ .name }}
+  namespace: {{ include "quarantine-wrapper.appNamespace" $ }}
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: {{ .hostname }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ $.Values.gateway.name }}
+      namespace: {{ $.Values.gateway.namespace }}
+      sectionName: {{ $.Values.gateway.sectionName }}
+  hostnames:
+    - {{ .hostname }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        {{- if and $.Values.authentik.enabled (and .authentik .authentik.enabled) }}
+        # Authentik Proxy-Provider: Traffic geht zu Authentik, nach Auth weiter zum Backend
+        - name: authentik-server
+          namespace: {{ $.Values.authentik.namespace }}
+          port: 80
+        {{- else }}
+        - name: {{ .name }}
+          port: {{ .port }}
+        {{- end }}
+{{- end }}
+
+{{- if .Values.mitmproxy.enabled }}
+---
+# mitmweb HTTPRoute
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .Values.appName }}-mitmweb
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: {{ include "quarantine-wrapper.mitmwebHostname" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      sectionName: {{ .Values.gateway.sectionName }}
+  hostnames:
+    - {{ include "quarantine-wrapper.mitmwebHostname" . }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        {{- if and .Values.authentik.enabled .Values.mitmproxy.authentik.enabled }}
+        - name: authentik-server
+          namespace: {{ .Values.authentik.namespace }}
+          port: 80
+        {{- else }}
+        - name: mitmproxy
+          port: {{ .Values.mitmproxy.webPort }}
+        {{- end }}
+{{- end }}

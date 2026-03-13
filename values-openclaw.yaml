@@ -1,0 +1,34 @@
+# ============================================================
+# OpenClaw Quarantine-Umgebung
+# ============================================================
+appName: openclaw
+
+services:
+  - name: web
+    port: 8080
+    hostname: p-openclaw-k8s.sparafucile.net
+    authentik:
+      enabled: true
+      skipPathRegex: "^/api/v1/"
+
+egress:
+  squidExtraDomains:
+    - generativelanguage.googleapis.com
+    - api.mistral.ai
+  extraEgressRules: []
+
+mitmproxy:
+  enabled: true
+  authentik:
+    enabled: true
+
+ca:
+  enabled: true
+
+helloWorld:
+  enabled: true
+
+authentik:
+  enabled: true
+  apiTokenSecret: authentik-api-token
+  outpostPk: 1

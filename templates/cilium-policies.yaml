@@ -1,0 +1,107 @@
+# ============================================================================
+# CiliumNetworkPolicies
+# ============================================================================
+# K8s NetworkPolicies erkennen Cilium-Identitaeten wie reserved:host und
+# reserved:ingress NICHT. Daher sind zusaetzliche CiliumNetworkPolicies noetig
+# fuer Gateway API (hostNetwork Envoy) und K8s API-Server Zugriff.
+# ============================================================================
+
+# --- App-Namespace: Gateway Envoy Ingress ---
+# Erlaubt Cilium Envoy (hostNetwork Gateway API) Zugriff auf Quarantine-Pods.
+# Ohne diese Policy: 503 "upstream connect error, connection timeout"
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-gateway-envoy-ingress
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host
+        - ingress
+        - kube-apiserver
+      toPorts:
+        - ports:
+            {{- range .Values.services }}
+            - port: "{{ .port }}"
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.helloWorld.enabled }}
+            - port: "{{ .Values.helloWorld.port }}"
+              protocol: TCP
+            {{- end }}
+---
+{{- if .Values.cilium.l7Visibility }}
+# L7-Visibility fuer Quarantine-Pods (Hubble HTTP-Monitoring)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: quarantine-l7-visibility
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+            app: egress-proxy
+      toPorts:
+        - ports:
+            - port: "{{ .Values.squid.port }}"
+              protocol: TCP
+            {{- if .Values.mitmproxy.enabled }}
+            - port: "{{ .Values.mitmproxy.proxyPort }}"
+              protocol: TCP
+            {{- end }}
+          rules:
+            http:
+              - {}
+---
+{{- end }}
+# --- Gateway-Namespace: Gateway Envoy Ingress (mitmweb UI) ---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-gateway-envoy-ingress
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host
+        - ingress
+        - kube-apiserver
+      toPorts:
+        - ports:
+            {{- if .Values.mitmproxy.enabled }}
+            - port: "{{ .Values.mitmproxy.webPort }}"
+              protocol: TCP
+            {{- end }}
+---
+{{- if .Values.ca.enabled }}
+# --- Gateway-Namespace: CA-Distributor K8s API-Server Zugriff ---
+# K8s NetworkPolicies koennen nach Cilium-DNAT den kube-apiserver nicht matchen
+# (ClusterIP 10.32.0.1:443 wird zu Master-Node-IPs:6443 uebersetzt).
+# toEntities: kube-apiserver kennt die API-Server-Identity und umgeht dieses Problem.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-ca-distributor-apiserver
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: ca-distribution
+  egress:
+    - toEntities:
+        - kube-apiserver
+{{- end }}
