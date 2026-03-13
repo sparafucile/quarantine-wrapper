@@ -112,9 +112,11 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
+              # Always overwrite with ConfigMap version (GitOps: config comes from Helm chart)
+              # OpenClaw may auto-migrate on startup, but those changes are ephemeral
               cp /config-source/openclaw.json /home/node/.openclaw/openclaw.json
               chown 1000:1000 /home/node/.openclaw/openclaw.json
-              echo "Config copied to PVC"
+              echo "Config deployed from ConfigMap (GitOps-managed)"
           volumeMounts:
             - name: openclaw-data
               mountPath: /home/node/.openclaw
