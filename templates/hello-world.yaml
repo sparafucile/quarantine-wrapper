@@ -47,7 +47,7 @@ data:
           <dt>App</dt>
           <dd><code>{{ .Values.appName }}</code></dd>
           <dt>Version</dt>
-          <dd><code>{{ .Chart.Version }}</code>{{ if and .Values.build.number (ne .Values.build.number "dev") }} (Build #{{ .Values.build.number }}){{ end }}</dd>
+          <dd><code>{{ .Chart.Version }}</code></dd>
           <dt>Deploy</dt>
           <dd><code>{{ now | date "2006-01-02 15:04 MST" }}</code></dd>
           <dt>Namespace</dt>
