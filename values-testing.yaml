@@ -1,7 +1,8 @@
 # ============================================================
 # Testing: Quarantine-Wrapper Testinstanz (ohne Authentik)
+# Nur appName aendern fuer neue Testlaeufe
 # ============================================================
-appName: testing1
+appName: testing2
 
 services: []
 
