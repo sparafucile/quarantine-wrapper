@@ -1,10 +1,12 @@
 {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
 # ============================================================================
-# OpenBao CA-Setup: Automatische CA-Keypair Generierung
+# OpenBao Setup: CA-Keypair + mitmweb Password Generierung
 # ============================================================================
 # Sync-Wave -5: Laeuft VOR allen anderen Ressourcen (ausser Namespaces).
-# Authentifiziert sich via K8s Auth bei OpenBao, generiert CA-Keypair falls
-# noch nicht vorhanden, speichert es in OpenBao.
+# Authentifiziert sich via K8s Auth bei OpenBao, generiert:
+# 1. CA-Keypair fuer mitmproxy TLS-Interception (falls nicht vorhanden)
+# 2. Zufaelliges mitmweb-Passwort (falls nicht vorhanden)
+# Beides wird in OpenBao gespeichert.
 # ============================================================================
 # WICHTIG: Auf dem ERSTEN Sync existieren noch keine NetworkPolicies im
 # Namespace → der Job hat uneingeschraenkten Netzwerk-Zugriff. Auf
@@ -35,22 +37,24 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-5"
 data:
-  setup-ca.py: |
+  setup-secrets.py: |
     #!/usr/bin/env python3
-    """Generates mitmproxy CA keypair and stores in OpenBao if not exists.
+    """Generates mitmproxy CA keypair and mitmweb password, stores in OpenBao.
     Uses K8s ServiceAccount JWT to authenticate via OpenBao Kubernetes Auth."""
-    import urllib.request, json, subprocess, sys, os
+    import urllib.request, json, subprocess, sys, os, secrets, string
     sys.stdout.reconfigure(line_buffering=True)
 
     OPENBAO_ADDR = "http://openbao.openbao.svc:8200"
     K8S_AUTH_ROLE = "quarantine-setup"
     CA_PATH = "{{ include "quarantine-wrapper.openbaoCAPath" . }}"
+    MITMWEB_PATH = "{{ include "quarantine-wrapper.openbaoMitmwebPath" . }}"
     APP_NAME = "{{ .Values.appName }}"
     TOKEN_FILE = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
-    print(f"=== OpenBao CA Setup for {APP_NAME} ===")
+    print(f"=== OpenBao Secrets Setup for {APP_NAME} ===")
     print(f"OpenBao: {OPENBAO_ADDR}")
     print(f"CA Path: secret/data/{CA_PATH}")
+    print(f"Mitmweb Path: secret/data/{MITMWEB_PATH}")
 
     # --- 1. K8s Auth: Get OpenBao token ---
     print("\n--- Authenticating via K8s Auth ---")
@@ -102,44 +106,55 @@ data:
         resp = urllib.request.urlopen(req, timeout=10)
         return json.loads(resp.read())
 
-    # --- 2. Check if CA already exists ---
+    # --- 2. CA-Keypair: Check and generate if needed ---
     print(f"\n--- Checking if CA exists at {CA_PATH} ---")
-    existing = vault_read(CA_PATH)
-    if existing and existing.get("data", {}).get("data", {}).get("cert"):
+    existing_ca = vault_read(CA_PATH)
+    if existing_ca and existing_ca.get("data", {}).get("data", {}).get("cert"):
         print("CA keypair already exists in OpenBao. Skipping generation.")
-        print("=== CA Setup complete (no changes) ===")
-        sys.exit(0)
+    else:
+        print("Generating new CA keypair...")
+        subprocess.run([
+            "openssl", "req", "-x509", "-newkey", "rsa:4096", "-days", "3650",
+            "-nodes", "-keyout", "/tmp/ca-key.pem", "-out", "/tmp/ca-cert.pem",
+            "-subj", f"/CN=mitmproxy CA ({APP_NAME})/O=Quarantine/OU={APP_NAME}"
+        ], check=True, capture_output=True)
 
-    # --- 3. Generate CA keypair ---
-    print("\n--- Generating new CA keypair ---")
-    subprocess.run([
-        "openssl", "req", "-x509", "-newkey", "rsa:4096", "-days", "3650",
-        "-nodes", "-keyout", "/tmp/ca-key.pem", "-out", "/tmp/ca-cert.pem",
-        "-subj", f"/CN=mitmproxy CA ({APP_NAME})/O=Quarantine/OU={APP_NAME}"
-    ], check=True, capture_output=True)
+        with open("/tmp/ca-cert.pem") as f:
+            cert = f.read()
+        with open("/tmp/ca-key.pem") as f:
+            key = f.read()
 
-    with open("/tmp/ca-cert.pem") as f:
-        cert = f.read()
-    with open("/tmp/ca-key.pem") as f:
-        key = f.read()
+        print(f"Generated CA cert ({len(cert)} bytes) and key ({len(key)} bytes)")
+        vault_write(CA_PATH, {
+            "cert": cert,
+            "key": key,
+            "type": "mitmproxy-ca",
+            "description": f"mitmproxy CA keypair for {APP_NAME} quarantine",
+            "account": "auto-generated"
+        })
+        print("CA keypair stored successfully!")
+        os.remove("/tmp/ca-key.pem")
+        os.remove("/tmp/ca-cert.pem")
 
-    print(f"Generated CA cert ({len(cert)} bytes) and key ({len(key)} bytes)")
+    # --- 3. mitmweb Password: Check and generate if needed ---
+    print(f"\n--- Checking if mitmweb password exists at {MITMWEB_PATH} ---")
+    existing_pw = vault_read(MITMWEB_PATH)
+    if existing_pw and existing_pw.get("data", {}).get("data", {}).get("password"):
+        print("mitmweb password already exists in OpenBao. Skipping generation.")
+    else:
+        # Generate a random 24-char alphanumeric password
+        alphabet = string.ascii_letters + string.digits
+        password = ''.join(secrets.choice(alphabet) for _ in range(24))
+        print(f"Generated mitmweb password ({len(password)} chars)")
+        vault_write(MITMWEB_PATH, {
+            "password": password,
+            "type": "mitmweb-password",
+            "description": f"mitmweb web UI password for {APP_NAME} quarantine",
+            "account": "auto-generated"
+        })
+        print("mitmweb password stored successfully!")
 
-    # --- 4. Store in OpenBao ---
-    print(f"\n--- Storing CA at secret/data/{CA_PATH} ---")
-    vault_write(CA_PATH, {
-        "cert": cert,
-        "key": key,
-        "type": "mitmproxy-ca",
-        "description": f"mitmproxy CA keypair for {APP_NAME} quarantine",
-        "account": "auto-generated"
-    })
-    print("CA keypair stored successfully!")
-
-    # Cleanup
-    os.remove("/tmp/ca-key.pem")
-    os.remove("/tmp/ca-cert.pem")
-    print("\n=== CA Setup complete ===")
+    print("\n=== Secrets Setup complete ===")
 ---
 # --- Sync-Hook Job: CA-Keypair generieren (Wave -5) ---
 apiVersion: batch/v1
@@ -167,7 +182,7 @@ spec:
       containers:
         - name: setup
           image: {{ .Values.ca.distributorImage.repository }}:{{ .Values.ca.distributorImage.tag }}
-          command: ["python3", "-u", "/scripts/setup-ca.py"]
+          command: ["python3", "-u", "/scripts/setup-secrets.py"]
           volumeMounts:
             - name: script
               mountPath: /scripts

@@ -76,6 +76,14 @@ spec:
             - "--set"
             - "confdir=/home/mitmproxy/.mitmproxy"
             {{- end }}
+            - "--set"
+            - "web_password=$(MITMWEB_PASSWORD)"
+          env:
+            - name: MITMWEB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mitmweb-password
+                  key: password
           ports:
             - containerPort: {{ .Values.mitmproxy.proxyPort }}
               name: proxy

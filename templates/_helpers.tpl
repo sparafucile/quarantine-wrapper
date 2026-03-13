@@ -160,6 +160,18 @@ Default: apps/quarantine/<appName>/mitmproxy-ca
 {{- end }}
 
 {{/*
+OpenBao-Pfad für das mitmweb Web-UI Passwort.
+Default: apps/quarantine/<appName>/mitmweb-password
+*/}}
+{{- define "quarantine-wrapper.openbaoMitmwebPath" -}}
+{{- if .Values.mitmproxy.openbaoPath }}
+{{- .Values.mitmproxy.openbaoPath }}
+{{- else }}
+{{- printf "apps/quarantine/%s/mitmweb-password" .Values.appName }}
+{{- end }}
+{{- end }}
+
+{{/*
 OpenBao-Pfad für den Authentik API-Token.
 Default: infra/authentik/api-token (shared über alle Quarantine-Apps)
 Per-App override via authentik.openbaoPath möglich.
