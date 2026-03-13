@@ -54,7 +54,7 @@ authentik:
 
 # --- Build ---
 build:
-  commit: "2142449"
+  commit: ""
 
 # --- Cilium ---
 cilium:

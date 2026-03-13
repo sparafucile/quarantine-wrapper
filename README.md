@@ -177,17 +177,22 @@ egress:
 
 Der Squid-Pod restartet automatisch bei Aenderungen an der Whitelist (Checksum-Annotation).
 
-### Proxy
+### Proxy-Kette
 
 | Parameter | Default | Beschreibung |
 |-----------|---------|-------------|
 | `squid.port` | `3128` | Squid Proxy Port |
-| `mitmproxy.enabled` | `true` | mitmproxy TLS-Interception |
+| `mitmproxy.enabled` | `true` | mitmproxy TLS-Interception + upstream-Modus |
 | `mitmproxy.proxyPort` | `8080` | mitmproxy Proxy Port |
 | `mitmproxy.webPort` | `8081` | mitmweb UI Port |
 | `mitmproxy.hostname` | auto | Default: `p-<appName>-mitmweb-k8s.sparafucile.net` |
 | `mitmproxy.openbaoPath` | auto | Default: `apps/quarantine/<appName>/mitmweb-password` |
 | `mitmproxy.storageClass` | `longhorn` | PVC StorageClass |
+
+Die Proxy-Env-Vars (`http_proxy`, `https_proxy`, etc.) werden automatisch angepasst:
+
+- **`mitmproxy.enabled: true`** — Apps nutzen `mitmproxy:8080` als Proxy. mitmproxy laeuft im `--mode upstream:http://squid:3128/` und leitet an Squid weiter. Alle Requests sind in mitmweb sichtbar (auch von Squid abgelehnte). Nur Squid hat Internet-Egress.
+- **`mitmproxy.enabled: false`** — Apps nutzen `squid:3128` direkt. Keine TLS-Interception, kein mitmweb. Squid-Whitelist greift trotzdem.
 
 ### CA-Zertifikat
 
