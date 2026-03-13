@@ -163,7 +163,7 @@ Wenn `authentik.enabled`: PostSync-Job erstellt automatisch Proxy-Provider, Appl
 | `mitmproxy.enabled` | `true` | mitmproxy TLS-Interception |
 | `mitmproxy.proxyPort` | `8080` | mitmproxy Proxy Port |
 | `mitmproxy.webPort` | `8081` | mitmweb UI Port |
-| `mitmproxy.hostname` | auto | Default: `p-mitmweb-<appName>-k8s.sparafucile.net` |
+| `mitmproxy.hostname` | auto | Default: `p-<appName>-mitmweb-k8s.sparafucile.net` |
 | `mitmproxy.openbaoPath` | auto | Default: `apps/quarantine/<appName>/mitmweb-password` |
 | `mitmproxy.storageClass` | `longhorn` | PVC StorageClass |
 

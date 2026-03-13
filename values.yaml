@@ -65,7 +65,7 @@ mitmproxy:
     tag: latest
   proxyPort: 8080
   webPort: 8081
-  hostname: ""                 # Default: p-mitmweb-<appName>-k8s.sparafucile.net
+  hostname: ""                 # Default: p-<appName>-mitmweb-k8s.sparafucile.net
   openbaoPath: ""              # Default: apps/quarantine/<appName>/mitmweb-password
   storageClass: longhorn
   storageSize: 100Mi

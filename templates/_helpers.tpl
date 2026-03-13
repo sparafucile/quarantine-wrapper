@@ -107,13 +107,14 @@ app.kubernetes.io/component: {{ .component }}
 {{/*
 Default-Hostname für mitmweb.
 Wenn mitmproxy.hostname gesetzt ist, wird dieser verwendet.
-Sonst: p-mitmweb-<appName>-k8s.<domain>
+Sonst: p-<appName>-mitmweb-k8s.<domain>
+Konvention: p-<appName>-<service>-k8s.<domain> (appName immer zuerst)
 */}}
 {{- define "quarantine-wrapper.mitmwebHostname" -}}
 {{- if .Values.mitmproxy.hostname }}
 {{- .Values.mitmproxy.hostname }}
 {{- else }}
-{{- printf "p-mitmweb-%s-k8s.%s" .Values.appName .Values.gateway.domain }}
+{{- printf "p-%s-mitmweb-k8s.%s" .Values.appName .Values.gateway.domain }}
 {{- end }}
 {{- end }}
 
