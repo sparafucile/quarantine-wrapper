@@ -12,7 +12,8 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 | **Proxy** | Squid (:3128) + mitmproxy (:8080/:8081) |
 | **Isolation** | NetworkPolicy + CiliumNetworkPolicy (default-deny) |
 | **CA** | OpenBao via ExternalSecret + CronJob-Distribution |
-| **Auth** | Authentik Proxy-Provider (PostSync-Job) |
+| **Auth** | Authentik Proxy-Provider (PostSync-Job, auto-discovery) |
+| **Default-App** | `quarantine-default` (HelloWorld + mitmweb, kein Authentik) |
 
 ## Architektur
 
@@ -34,7 +35,7 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 |  +------+-------+  +------+-------+                      |
 +---------+------------------+-----------------------------+
           v                  v
-      Internet           mitmweb UI -> Authentik SSO
+      Internet           mitmweb UI (opt. Authentik SSO)
 ```
 
 ## Deployment
@@ -43,23 +44,72 @@ Jede Quarantine-Instanz wird als eigene ArgoCD-App deployed:
 
 ```bash
 # Helm Template testen
-helm template <appName> ./chart -f values-<appName>.yaml
+helm template <appName> . -f values-<appName>.yaml
 
 # Lint
-helm lint ./chart -f values-<appName>.yaml
+helm lint . -f values-<appName>.yaml
 ```
 
-## Minimalbeispiel
+### Voraussetzungen fuer neue Instanzen
+
+1. **OpenBao Secrets:** CA-Keypair unter `apps/quarantine/<appName>/mitmproxy-ca` (Keys: `cert`, `key`). Falls Authentik: zusaetzlich Token unter `apps/quarantine/<appName>/authentik-token` (Key: `token`)
+2. **Values-Datei** im Repo erstellen (`values-<appName>.yaml`)
+3. **ArgoCD-App** erstellen (Source: dieses Repo, Helm mit `valueFiles: ["values-<appName>.yaml"]`, `ServerSideApply=true`, `ignoreDifferences` fuer HTTPRoute-Defaults)
+4. Alles weitere passiert automatisch (Namespaces, Policies, Proxy, CA, Authentik-Setup)
+
+### ArgoCD-App-Konfiguration
 
 ```yaml
-appName: openclaw
+syncPolicy:
+  automated:
+    selfHeal: true
+  syncOptions:
+    - CreateNamespace=false
+    - ServerSideApply=true
+ignoreDifferences:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    jsonPointers:
+      - /spec/rules/0/backendRefs/0/group
+      - /spec/rules/0/backendRefs/0/kind
+      - /spec/rules/0/backendRefs/0/weight
+```
 
+## Minimalbeispiel (ohne Authentik)
+
+```yaml
+appName: default
+services: []
+mitmproxy:
+  enabled: true
+  authentik:
+    enabled: false
+ca:
+  enabled: true
+helloWorld:
+  enabled: true
+authentik:
+  enabled: false
+cilium:
+  l7Visibility: false
+```
+
+## Minimalbeispiel (mit Authentik)
+
+```yaml
+appName: myapp
 services:
   - name: web
     port: 8080
-    hostname: p-openclaw-k8s.sparafucile.net
+    hostname: p-myapp-k8s.sparafucile.net
     authentik:
       enabled: true
+mitmproxy:
+  enabled: true
+  authentik:
+    enabled: true
+authentik:
+  enabled: true
 ```
 
 ## Values-Referenz
@@ -74,22 +124,26 @@ services:
 
 ```yaml
 services:
-  - name: web            # K8s Service-Name
+  - name: web            # K8s Service-Name (muss dem tatsaechlichen K8s Service matchen)
     port: 8080           # Service-Port
-    hostname: ...        # Externer Hostname fuer HTTPRoute
+    hostname: ...        # Externer Hostname fuer HTTPRoute + ExternalDNS
     authentik:
       enabled: true      # Authentik SSO fuer diesen Service
-      skipPathRegex: ""  # API-Bypass Pattern
+      skipPathRegex: ""  # API-Bypass Pattern (z.B. "^/api/")
 ```
 
-Fuer jeden Service wird automatisch generiert: HTTPRoute, NetworkPolicy (Ingress-Port), CiliumNetworkPolicy (fromEntities: ingress).
+Fuer jeden Service wird automatisch generiert: HTTPRoute, NetworkPolicy (Ingress-Port), CiliumNetworkPolicy (fromEntities: ingress). ACHTUNG: Wenn kein tatsaechlicher K8s Service mit diesem Namen existiert, wird die HTTPRoute Degraded (harmlos, aber ArgoCD zeigt Fehler).
 
-### Egress
+### Authentik
 
 | Parameter | Default | Beschreibung |
 |-----------|---------|-------------|
-| `egress.squidExtraDomains` | `[]` | Zusaetzliche Domains fuer Squid-ACL |
-| `egress.extraEgressRules` | `[]` | Zusaetzliche K8s NetworkPolicy egress rules |
+| `authentik.enabled` | `true` | Authentik SSO global |
+| `authentik.namespace` | `authentik` | Authentik Namespace |
+| `authentik.outpostPk` | `1` | Fallback Outpost PK (Auto-Discovery aktiv) |
+| `authentik.openbaoPath` | auto | Default: `apps/quarantine/<appName>/authentik-token` |
+
+Wenn `authentik.enabled`: PostSync-Job erstellt automatisch Proxy-Provider, Applications und updated den Embedded Outpost. Flows (authorization + invalidation) werden auto-discovered via `/api/v3/flows/instances/`. Der Embedded Outpost wird ueber `/api/v3/outposts/instances/` gesucht (`type=proxy`).
 
 ### Proxy
 
@@ -129,7 +183,7 @@ Fuer jeden Service wird automatisch generiert: HTTPRoute, NetworkPolicy (Ingress
 
 ## NetworkPolicy-Konzept
 
-### App-Namespace
+### App-Namespace (`<appName>-quarantine`)
 
 - **default-deny** (Ingress + Egress)
 - **allow-intra-namespace** (Pod-zu-Pod)
@@ -138,7 +192,7 @@ Fuer jeden Service wird automatisch generiert: HTTPRoute, NetworkPolicy (Ingress
 - **allow-argocd-ingress** (ArgoCD Management)
 - **allow-lan-ingress** (LAN + kube-system + gateway-system, dynamische Ports)
 
-### Gateway-Namespace
+### Gateway-Namespace (`<appName>-quarantine-gw`)
 
 - **default-deny** (Ingress + Egress)
 - **allow-ingress-from-quarantine** (App-Pods auf Proxy-Ports)
@@ -147,13 +201,16 @@ Fuer jeden Service wird automatisch generiert: HTTPRoute, NetworkPolicy (Ingress
 - **allow-dns** (CoreDNS)
 - **allow-ca-distributor-egress** (K8s API Defense-in-Depth)
 - **allow-internet-egress** (Internet minus LAN/Pod/Service-CIDR)
-- **allow-authentik-egress** (PostSync-Job zu Authentik)
+- **allow-authentik-egress** (wenn authentik.enabled: PostSync-Job zu Authentik)
 
-### CiliumNetworkPolicies
+### CiliumNetworkPolicies (KRITISCH)
 
-- **allow-gateway-envoy-ingress** (fromEntities: host, ingress, kube-apiserver) - KRITISCH fuer Gateway API
-- **quarantine-l7-visibility** (Hubble HTTP-Monitoring)
-- **allow-ca-distributor-apiserver** (toEntities: kube-apiserver nach DNAT)
+K8s NetworkPolicies erkennen Cilium-Identitaeten nicht. Daher zusaetzlich:
+
+- **allow-gateway-envoy-ingress** (fromEntities: host, ingress, kube-apiserver) — Pflicht fuer Gateway API
+- **quarantine-l7-visibility** (Hubble HTTP-Monitoring, nur wenn `cilium.l7Visibility: true`)
+- **allow-ca-distributor-apiserver** (toEntities: kube-apiserver — nach DNAT)
+- **allow-authentik-setup-egress** (toCIDR: Service-CIDR + toEndpoints — fuer PostSync-Job)
 
 ## Templates
 
@@ -162,32 +219,47 @@ Fuer jeden Service wird automatisch generiert: HTTPRoute, NetworkPolicy (Ingress
 | `_helpers.tpl` | Namespace-Helpers, Label-Helpers, Hostname-Defaults, Proxy-Env |
 | `namespaces.yaml` | 2 Namespaces |
 | `networkpolicies-quarantine.yaml` | 7 NetworkPolicies |
-| `networkpolicies-gateway.yaml` | 9 NetworkPolicies |
-| `cilium-policies.yaml` | 4 CiliumNetworkPolicies |
+| `networkpolicies-gateway.yaml` | 7-9 NetworkPolicies (je nach authentik.enabled) |
+| `cilium-policies.yaml` | 3-5 CiliumNetworkPolicies |
 | `squid.yaml` | ConfigMap, Deployment, Service |
 | `mitmproxy.yaml` | PVC, Deployment, Service |
-| `external-secret.yaml` | ExternalSecret (OpenBao CA) |
+| `external-secret.yaml` | ExternalSecret(s) (CA + opt. Authentik-Token) |
 | `mitmproxy-ca-distribution.yaml` | SA, RBAC, Script-CM, CronJob, PostSync-Job |
 | `httproutes.yaml` | HTTPRoutes (dynamisch aus services[]) |
-| `reference-grants.yaml` | ReferenceGrants fuer Gateway |
-| `authentik-setup.yaml` | PostSync-Job (Proxy-Provider + Application) |
+| `reference-grants.yaml` | ReferenceGrants (Gateway + opt. Authentik) |
+| `authentik-setup.yaml` | PostSync-Job (Proxy-Provider + Application + Outpost) |
 | `hello-world.yaml` | Debug-Pod mit CA-Trust + Proxy-Env |
 | `rbac.yaml` | Workload-RBAC (read-only) |
 
-## Migration von quarantine-network
+## Lessons Learned (Session 198)
 
-1. CA-Keypair in OpenBao unter neuem Pfad speichern: `apps/quarantine/<appName>/mitmproxy-ca`
-2. Neue ArgoCD-App `quarantine-<appName>` erstellen
-3. Alte `quarantine-network` App + Namespaces entfernen
-4. Hello-World in neuem Namespace verifizieren
+### Cilium pre-DNAT: toCIDR statt toEndpoints fuer Service-Traffic
 
-## Neue Quarantine-Umgebung erstellen
+**Problem:** `toEndpoints` mit `matchLabels: io.kubernetes.pod.namespace` funktioniert NICHT fuer Traffic zu Service-ClusterIPs, wenn kube-proxy das DNAT macht. Cilium evaluiert Policies VOR dem kube-proxy DNAT — die ClusterIP hat keine Pod-Identity.
 
-1. Values-Datei erstellen mit `appName` und `services[]`
-2. CA-Keypair generieren und in OpenBao speichern
-3. Authentik API-Token Secret erstellen (falls `authentik.enabled`)
-4. ArgoCD-App erstellen die auf dieses Chart + Values zeigt
-5. Sync + Verifizieren (NetworkPolicy, Proxy, CA, HTTPRoutes)
+**Fix:** `toCIDR` mit Service-CIDR (`10.32.0.0/12`) fuer pre-DNAT-Matching verwenden, `toEndpoints` als Fallback fuer direkten Pod-zu-Pod-Traffic behalten. Siehe `allow-authentik-setup-egress` in `cilium-policies.yaml`.
+
+**Merke:** `toEntities: kube-apiserver` funktioniert (Cilium kennt die Identity), aber `toEndpoints` funktioniert NICHT fuer beliebige Services via ClusterIP bei aktivem kube-proxy.
+
+### Authentik API: Pflichtfelder fuer Provider-Erstellung
+
+POST `/api/v3/providers/proxy/` erfordert zwingend `authorization_flow` und `invalidation_flow` (UUIDs). Das Script discovered diese automatisch via `/api/v3/flows/instances/?ordering=slug`.
+
+### Authentik Embedded Outpost: kein fester PK
+
+Der Embedded Outpost hat keinen vorhersagbaren Primary Key. Das Script sucht ihn via `/api/v3/outposts/instances/` und filtert nach `type=proxy`.
+
+### OpenBao: intern nur HTTP
+
+OpenBao ist cluster-intern nur via HTTP erreichbar (`http://openbao.openbao.svc.p-k8s-cluster.local:8200`). HTTPS verursacht SSL record layer failure.
+
+### ArgoCD PostSync-Hooks: Sync-Phase-Ressourcen werden VORHER deployed
+
+Neue Ressourcen (z.B. CiliumNetworkPolicies) die als regulaere Sync-Ressourcen (NICHT als Hook) definiert sind, werden in der Sync-Phase deployed — BEVOR PostSync-Hooks laufen. Das loest das Chicken-and-Egg-Problem: CNP fuer den PostSync-Job muss eine regulaere Ressource sein, KEIN Hook.
+
+### OutOfSync bei ExternalSecrets und HTTPRoutes (kosmetisch)
+
+ServerSideApply erzeugt Diffs bei ExternalSecrets (ESO-Webhook ergaenzt Defaults) und HTTPRoutes (API-Server ergaenzt group/kind/weight). `ignoreDifferences` fuer HTTPRoutes ist konfiguriert, ExternalSecret-Diffs sind harmlos (Health: Healthy).
 
 ## Abhaengigkeiten
 
@@ -195,3 +267,4 @@ Fuer jeden Service wird automatisch generiert: HTTPRoute, NetworkPolicy (Ingress
 - Cilium Gateway API (cluster-gateway in gateway-system)
 - Authentik (falls `authentik.enabled`)
 - Longhorn (fuer mitmproxy PVC)
+- ExternalDNS (fuer HTTPRoute-Annotations)

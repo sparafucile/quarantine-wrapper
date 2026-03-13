@@ -1,14 +1,10 @@
 # ============================================================
-# Test-App 5: Quarantine-Wrapper MIT Authentik (outpost fix)
+# Default Quarantine-Wrapper: HelloWorld + mitmweb
+# Kein Authentik, minimale Konfiguration
 # ============================================================
-appName: test5
+appName: default
 
-services:
-  - name: web
-    port: 8080
-    hostname: p-test5-k8s.sparafucile.net
-    authentik:
-      enabled: true
+services: []
 
 egress:
   squidExtraDomains: []
@@ -17,7 +13,7 @@ egress:
 mitmproxy:
   enabled: true
   authentik:
-    enabled: true
+    enabled: false
 
 ca:
   enabled: true
@@ -26,8 +22,7 @@ helloWorld:
   enabled: true
 
 authentik:
-  enabled: true
-  outpostPk: 1
+  enabled: false
 
 cilium:
   l7Visibility: false
