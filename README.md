@@ -11,7 +11,7 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 | **Namespaces** | `<appName>-quarantine` + `<appName>-quarantine-gw` |
 | **Proxy** | Squid (:3128) + mitmproxy (:8080/:8081) |
 | **Isolation** | NetworkPolicy + CiliumNetworkPolicy (default-deny) |
-| **CA** | OpenBao via ExternalSecret + CronJob-Distribution |
+| **CA** | Auto-generiert via OpenBao K8s Auth + ExternalSecret + CronJob-Distribution |
 | **Auth** | Authentik Proxy-Provider (PostSync-Job, auto-discovery) |
 | **Default-App** | `quarantine-default` (HelloWorld + mitmweb, kein Authentik) |
 
@@ -52,10 +52,20 @@ helm lint . -f values-<appName>.yaml
 
 ### Voraussetzungen fuer neue Instanzen
 
-1. **OpenBao Secrets:** CA-Keypair unter `apps/quarantine/<appName>/mitmproxy-ca` (Keys: `cert`, `key`). Falls Authentik: zusaetzlich Token unter `apps/quarantine/<appName>/authentik-token` (Key: `token`)
-2. **Values-Datei** im Repo erstellen (`values-<appName>.yaml`)
-3. **ArgoCD-App** erstellen (Source: dieses Repo, Helm mit `valueFiles: ["values-<appName>.yaml"]`, `ServerSideApply=true`, `ignoreDifferences` fuer HTTPRoute-Defaults)
-4. Alles weitere passiert automatisch (Namespaces, Policies, Proxy, CA, Authentik-Setup)
+1. **Values-Datei** im Repo erstellen (`values-<appName>.yaml`)
+2. **ArgoCD-App** erstellen (Source: dieses Repo, Helm mit `valueFiles: ["values-<appName>.yaml"]`, `ServerSideApply=true`, `ignoreDifferences` fuer HTTPRoute-Defaults)
+3. Alles weitere passiert **vollautomatisch** beim ersten Sync:
+   - Namespaces, Policies, Proxy, CA-Generierung, CA-Distribution, Authentik-Setup
+
+**CA-Keypair:** Wird automatisch beim ersten ArgoCD-Sync durch einen Sync-Hook Job generiert und in OpenBao gespeichert (`apps/quarantine/<appName>/mitmproxy-ca`). Manuelle Secret-Erstellung ist NICHT mehr noetig.
+
+**Authentik-Token:** Falls `authentik.enabled`: Der gemeinsame Token liegt unter `infra/authentik/api-token` (wird einmal zentral angelegt, nicht pro App).
+
+**Einmalige Cluster-Voraussetzungen** (bereits eingerichtet):
+- OpenBao K8s Auth Role `quarantine-setup` (SA `openbao-setup`, alle Namespaces)
+- OpenBao Policy `quarantine-setup-write` (write auf `secret/data/apps/quarantine/*`)
+- ClusterSecretStore `openbao` (ESO)
+- Shared Authentik Token unter `infra/authentik/api-token`
 
 ### ArgoCD-App-Konfiguration
 
@@ -141,7 +151,7 @@ Fuer jeden Service wird automatisch generiert: HTTPRoute, NetworkPolicy (Ingress
 | `authentik.enabled` | `true` | Authentik SSO global |
 | `authentik.namespace` | `authentik` | Authentik Namespace |
 | `authentik.outpostPk` | `1` | Fallback Outpost PK (Auto-Discovery aktiv) |
-| `authentik.openbaoPath` | auto | Default: `apps/quarantine/<appName>/authentik-token` |
+| `authentik.openbaoPath` | auto | Default: `infra/authentik/api-token` (shared) |
 
 Wenn `authentik.enabled`: PostSync-Job erstellt automatisch Proxy-Provider, Applications und updated den Embedded Outpost. Flows (authorization + invalidation) werden auto-discovered via `/api/v3/flows/instances/`. Der Embedded Outpost wird ueber `/api/v3/outposts/instances/` gesucht (`type=proxy`).
 
@@ -223,6 +233,7 @@ K8s NetworkPolicies erkennen Cilium-Identitaeten nicht. Daher zusaetzlich:
 | `cilium-policies.yaml` | 3-5 CiliumNetworkPolicies |
 | `squid.yaml` | ConfigMap, Deployment, Service |
 | `mitmproxy.yaml` | PVC, Deployment, Service |
+| `openbao-setup.yaml` | SA, ConfigMap (Python-Script), Sync-Hook Job (CA auto-gen, Wave -5) |
 | `external-secret.yaml` | ExternalSecret(s) (CA + opt. Authentik-Token) |
 | `mitmproxy-ca-distribution.yaml` | SA, RBAC, Script-CM, CronJob, PostSync-Job |
 | `httproutes.yaml` | HTTPRoutes (dynamisch aus services[]) |
@@ -260,6 +271,18 @@ Neue Ressourcen (z.B. CiliumNetworkPolicies) die als regulaere Sync-Ressourcen (
 ### OutOfSync bei ExternalSecrets und HTTPRoutes (kosmetisch)
 
 ServerSideApply erzeugt Diffs bei ExternalSecrets (ESO-Webhook ergaenzt Defaults) und HTTPRoutes (API-Server ergaenzt group/kind/weight). `ignoreDifferences` fuer HTTPRoutes ist konfiguriert, ExternalSecret-Diffs sind harmlos (Health: Healthy).
+
+## Sync-Wave Ordering
+
+| Wave | Ressourcen | Grund |
+|------|-----------|-------|
+| -10 | Namespaces | Muessen existieren bevor Ressourcen darin deployed werden |
+| -5 | OpenBao-Setup (SA, ConfigMap, Job) | CA muss in OpenBao existieren bevor ExternalSecret synct |
+| 0 | Alles andere (Default) | NetworkPolicies, Deployments, Services, ExternalSecrets |
+
+Der `openbao-ca-setup` Job (Wave -5) ist ein ArgoCD Sync-Hook (`argocd.argoproj.io/hook: Sync`). Er laeuft bei jedem Sync, prueft ob das CA-Keypair bereits existiert und erstellt es nur bei Bedarf. `hook-delete-policy: BeforeHookCreation` sorgt dafuer, dass alte Jobs vor dem naechsten Sync geloescht werden.
+
+**Achtung beim Loeschen:** Falls eine App geloescht wird waehrend der Hook-Job laeuft, kann die Loeschung blockiert werden (Finalizer haengt). Fix: Job manuell loeschen mit `kubectl delete job openbao-ca-setup -n <appName>-quarantine-gw`.
 
 ## Abhaengigkeiten
 
