@@ -1,0 +1,189 @@
+{{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
+# ============================================================================
+# OpenBao CA-Setup: Automatische CA-Keypair Generierung
+# ============================================================================
+# Sync-Wave -5: Laeuft VOR allen anderen Ressourcen (ausser Namespaces).
+# Authentifiziert sich via K8s Auth bei OpenBao, generiert CA-Keypair falls
+# noch nicht vorhanden, speichert es in OpenBao.
+# ============================================================================
+# WICHTIG: Auf dem ERSTEN Sync existieren noch keine NetworkPolicies im
+# Namespace → der Job hat uneingeschraenkten Netzwerk-Zugriff. Auf
+# FOLGENDEN Syncs greifen die allow-openbao-setup-egress Policies.
+# ============================================================================
+
+# --- ServiceAccount fuer den Setup-Job ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao-setup
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    app.kubernetes.io/component: openbao-setup
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+---
+# --- ConfigMap mit dem Python-Script ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openbao-setup-script
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    app.kubernetes.io/component: openbao-setup
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+data:
+  setup-ca.py: |
+    #!/usr/bin/env python3
+    """Generates mitmproxy CA keypair and stores in OpenBao if not exists.
+    Uses K8s ServiceAccount JWT to authenticate via OpenBao Kubernetes Auth."""
+    import urllib.request, json, subprocess, sys, os
+    sys.stdout.reconfigure(line_buffering=True)
+
+    OPENBAO_ADDR = "http://openbao.openbao.svc:8200"
+    K8S_AUTH_ROLE = "quarantine-setup"
+    CA_PATH = "{{ include "quarantine-wrapper.openbaoCAPath" . }}"
+    APP_NAME = "{{ .Values.appName }}"
+    TOKEN_FILE = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+    print(f"=== OpenBao CA Setup for {APP_NAME} ===")
+    print(f"OpenBao: {OPENBAO_ADDR}")
+    print(f"CA Path: secret/data/{CA_PATH}")
+
+    # --- 1. K8s Auth: Get OpenBao token ---
+    print("\n--- Authenticating via K8s Auth ---")
+    with open(TOKEN_FILE) as f:
+        jwt = f.read().strip()
+
+    auth_data = json.dumps({"role": K8S_AUTH_ROLE, "jwt": jwt}).encode()
+    req = urllib.request.Request(
+        f"{OPENBAO_ADDR}/v1/auth/kubernetes/login",
+        data=auth_data,
+        headers={"Content-Type": "application/json"}
+    )
+    try:
+        resp = urllib.request.urlopen(req, timeout=15)
+        auth_result = json.loads(resp.read())
+        vault_token = auth_result["auth"]["client_token"]
+        print(f"Authenticated! Policies: {auth_result['auth']['policies']}")
+    except urllib.error.HTTPError as e:
+        err = e.read().decode()
+        print(f"ERROR: K8s Auth failed: {e.code} {err}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"ERROR: K8s Auth failed: {e}")
+        sys.exit(1)
+
+    headers = {"X-Vault-Token": vault_token, "Content-Type": "application/json"}
+
+    def vault_read(path):
+        req = urllib.request.Request(
+            f"{OPENBAO_ADDR}/v1/secret/data/{path}",
+            headers=headers
+        )
+        try:
+            resp = urllib.request.urlopen(req, timeout=10)
+            return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            raise
+
+    def vault_write(path, data):
+        body = json.dumps({"data": data}).encode()
+        req = urllib.request.Request(
+            f"{OPENBAO_ADDR}/v1/secret/data/{path}",
+            data=body,
+            headers=headers,
+            method="POST"
+        )
+        resp = urllib.request.urlopen(req, timeout=10)
+        return json.loads(resp.read())
+
+    # --- 2. Check if CA already exists ---
+    print(f"\n--- Checking if CA exists at {CA_PATH} ---")
+    existing = vault_read(CA_PATH)
+    if existing and existing.get("data", {}).get("data", {}).get("cert"):
+        print("CA keypair already exists in OpenBao. Skipping generation.")
+        print("=== CA Setup complete (no changes) ===")
+        sys.exit(0)
+
+    # --- 3. Generate CA keypair ---
+    print("\n--- Generating new CA keypair ---")
+    # Verify openssl is available
+    subprocess.run(["openssl", "version"], check=True, capture_output=True)
+
+    subprocess.run([
+        "openssl", "req", "-x509", "-newkey", "rsa:4096", "-days", "3650",
+        "-nodes", "-keyout", "/tmp/ca-key.pem", "-out", "/tmp/ca-cert.pem",
+        "-subj", f"/CN=mitmproxy CA ({APP_NAME})/O=Quarantine/OU={APP_NAME}"
+    ], check=True, capture_output=True)
+
+    with open("/tmp/ca-cert.pem") as f:
+        cert = f.read()
+    with open("/tmp/ca-key.pem") as f:
+        key = f.read()
+
+    print(f"Generated CA cert ({len(cert)} bytes) and key ({len(key)} bytes)")
+
+    # --- 4. Store in OpenBao ---
+    print(f"\n--- Storing CA at secret/data/{CA_PATH} ---")
+    vault_write(CA_PATH, {
+        "cert": cert,
+        "key": key,
+        "type": "mitmproxy-ca",
+        "description": f"mitmproxy CA keypair for {APP_NAME} quarantine",
+        "account": "auto-generated"
+    })
+    print("CA keypair stored successfully!")
+
+    # Cleanup
+    os.remove("/tmp/ca-key.pem")
+    os.remove("/tmp/ca-cert.pem")
+    print("\n=== CA Setup complete ===")
+---
+# --- Sync-Hook Job: CA-Keypair generieren (Wave -5) ---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openbao-ca-setup
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "-5"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    app.kubernetes.io/component: openbao-setup
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 120
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: openbao-setup
+    spec:
+      serviceAccountName: openbao-setup
+      restartPolicy: OnFailure
+      containers:
+        - name: setup
+          image: {{ .Values.ca.distributorImage.repository }}:{{ .Values.ca.distributorImage.tag }}
+          command: ["python3", "/scripts/setup-ca.py"]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+      volumes:
+        - name: script
+          configMap:
+            name: openbao-setup-script
+{{- end }}

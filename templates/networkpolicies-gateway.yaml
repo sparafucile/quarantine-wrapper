@@ -227,6 +227,49 @@ spec:
         - protocol: TCP
           port: 443
 {{- end }}
+{{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
+---
+# OpenBao-Setup: Egress zu OpenBao fuer CA-Generierung
+# Wird auf nachfolgenden Syncs benoetigt (beim ersten Sync existieren
+# noch keine Policies, daher ist der Job sowieso uneingeschraenkt)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-openbao-setup-egress
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: openbao-setup
+  policyTypes:
+    - Egress
+  egress:
+    # OpenBao Service (via ClusterIP pre-DNAT + Pods post-DNAT)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openbao
+        - ipBlock:
+            cidr: {{ .Values.network.serviceCIDR }}
+      ports:
+        - protocol: TCP
+          port: 8200
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}
 {{- if .Values.egress.extraEgressRules }}
 ---
 # Extra-Egress-Rules (aus values.yaml)

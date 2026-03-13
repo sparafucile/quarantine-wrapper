@@ -148,13 +148,14 @@ Default: apps/quarantine/<appName>/mitmproxy-ca
 
 {{/*
 OpenBao-Pfad für den Authentik API-Token.
-Default: apps/quarantine/<appName>/authentik-token
+Default: infra/authentik/api-token (shared über alle Quarantine-Apps)
+Per-App override via authentik.openbaoPath möglich.
 */}}
 {{- define "quarantine-wrapper.openbaoAuthentikPath" -}}
 {{- if .Values.authentik.openbaoPath }}
 {{- .Values.authentik.openbaoPath }}
 {{- else }}
-{{- printf "apps/quarantine/%s/authentik-token" .Values.appName }}
+{{- "infra/authentik/api-token" }}
 {{- end }}
 {{- end }}
 

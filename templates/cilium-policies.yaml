@@ -140,7 +140,52 @@ spec:
               protocol: TCP
 {{- end }}
 ---
+{{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
+---
+# --- Gateway-Namespace: OpenBao-Setup Egress ---
+# Erlaubt dem CA-Setup-Job den Zugriff auf OpenBao.
+# CILIUM PRE-DNAT: toCIDR fuer Service ClusterIP + toEndpoints fuer Pods.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-openbao-setup-egress
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: openbao-setup
+  egress:
+    # OpenBao via Service ClusterIP (pre-DNAT)
+    - toCIDR:
+        - {{ .Values.network.serviceCIDR }}
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+    # OpenBao Pods direkt (post-DNAT)
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: openbao
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+{{- end }}
 {{- if .Values.ca.enabled }}
+---
 # --- Gateway-Namespace: CA-Distributor K8s API-Server Zugriff ---
 # K8s NetworkPolicies koennen nach Cilium-DNAT den kube-apiserver nicht matchen
 # (ClusterIP 10.32.0.1:443 wird zu Master-Node-IPs:6443 uebersetzt).
