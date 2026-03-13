@@ -240,10 +240,9 @@ Installiert das mitmproxy CA-Zertifikat im Trust-Store.
   args:
     - |
       if [ -f /ca-cert/mitmproxy-ca-cert.pem ]; then
-        mkdir -p /usr/local/share/ca-certificates
-        cp /ca-cert/mitmproxy-ca-cert.pem /usr/local/share/ca-certificates/mitmproxy-ca.crt
-        update-ca-certificates
-        cp /etc/ssl/certs/ca-certificates.crt /shared-certs/ca-certificates.crt
+        echo "Merging mitmproxy CA with system trust store..."
+        cat /etc/ssl/certs/ca-certificates.crt /ca-cert/mitmproxy-ca-cert.pem > /shared-certs/ca-certificates.crt
+        echo "CA bundle created with mitmproxy CA."
       else
         echo "WARN: CA cert not found, using system certs"
         cp /etc/ssl/certs/ca-certificates.crt /shared-certs/ca-certificates.crt
