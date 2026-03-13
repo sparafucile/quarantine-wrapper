@@ -89,6 +89,9 @@ spec:
 # --- Gateway-Namespace: Authentik-Setup Egress ---
 # WICHTIG: Kein Hook! Diese Policy muss als regulaere Sync-Ressource deployed werden,
 # BEVOR der PostSync-Job laeuft. ArgoCD deployed Sync-Ressourcen vor PostSync-Hooks.
+# CILIUM PRE-DNAT: toCIDR statt toEndpoints noetig, da Cilium die Policy VOR dem
+# kube-proxy DNAT evaluiert. ClusterIPs haben keine Pod-Identity, daher matcht
+# toEndpoints nicht fuer Service-Traffic.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -101,6 +104,16 @@ spec:
     matchLabels:
       app.kubernetes.io/component: authentik-setup
   egress:
+    # Authentik via Service ClusterIP (Service-CIDR, pre-DNAT)
+    - toCIDR:
+        - {{ .Values.network.serviceCIDR }}
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+    # Authentik Pods direkt (post-DNAT / kube-proxy replacement)
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: {{ .Values.authentik.namespace }}
@@ -110,6 +123,11 @@ spec:
               protocol: TCP
             - port: "443"
               protocol: TCP
+            - port: "9000"
+              protocol: TCP
+            - port: "9443"
+              protocol: TCP
+    # DNS
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: kube-system
