@@ -56,6 +56,12 @@ authentik:
 build:
   commit: "08900a0"
 
+# --- Egress: Squid-Whitelist ---
+egress:
+  squidAllowedDomains:
+    - google.com                             # Test: erlaubt
+    - generativelanguage.googleapis.com      # Google Gemini API
+
 # --- Cilium ---
 cilium:
   l7Visibility: false

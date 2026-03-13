@@ -29,7 +29,10 @@ services: []
 # ============================================================
 egress:
   # Standard: Internet nur via Proxy, LAN/Pod-CIDR/Service-CIDR blockiert
-  squidAllowedDomains: []      # Domain-Whitelist fuer Squid (leer = alle erlaubt)
+  squidAllowedDomains:           # Domain-Whitelist fuer Squid
+    - placeholder.quarantine.internal   # Dummy: blockiert ALLES bis echte Domains eingetragen werden
+  # WICHTIG: Leere Liste ([]) wuerde ALLES erlauben!
+  # Eintraege OHNE fuehrenden Punkt - der Punkt wird automatisch ergaenzt.
   # Beispiel:
   # squidAllowedDomains:
   #   - generativelanguage.googleapis.com   # Google Gemini API
