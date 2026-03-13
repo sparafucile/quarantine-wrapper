@@ -86,6 +86,20 @@ spec:
   policyTypes:
     - Egress
   egress:
+    {{- if .Values.mitmproxy.enabled }}
+    # Bei aktiver Proxy-Kette: Quarantine -> mitmproxy (erster Hop)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "quarantine-wrapper.gwNamespace" . }}
+          podSelector:
+            matchLabels:
+              app: mitmproxy-debug
+      ports:
+        - protocol: TCP
+          port: {{ .Values.mitmproxy.proxyPort }}
+    {{- else }}
+    # Ohne mitmproxy: Quarantine -> Squid direkt
     - to:
         - namespaceSelector:
             matchLabels:
@@ -96,10 +110,7 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.squid.port }}
-        {{- if .Values.mitmproxy.enabled }}
-        - protocol: TCP
-          port: {{ .Values.mitmproxy.proxyPort }}
-        {{- end }}
+    {{- end }}
 ---
 # ArgoCD Ingress (fuer App-Management)
 apiVersion: networking.k8s.io/v1
