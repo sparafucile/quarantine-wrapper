@@ -87,9 +87,8 @@ spec:
 {{- if .Values.authentik.enabled }}
 ---
 # --- Gateway-Namespace: Authentik-Setup Egress ---
-# Der PostSync-Job muss die Authentik-API erreichen um Provider/Applications zu erstellen.
-# K8s NetworkPolicies allein reichen nicht, weil Cilium den Traffic zur Service-ClusterIP
-# VOR dem DNAT evaluiert. CiliumNetworkPolicy mit toEndpoints matcht direkt auf Pod-Identity.
+# WICHTIG: Kein Hook! Diese Policy muss als regulaere Sync-Ressource deployed werden,
+# BEVOR der PostSync-Job laeuft. ArgoCD deployed Sync-Ressourcen vor PostSync-Hooks.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
