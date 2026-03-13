@@ -111,9 +111,6 @@ data:
         sys.exit(0)
 
     # --- 3. Generate CA keypair ---
-    print("\n--- Installing openssl ---")
-    subprocess.run(["apk", "add", "--no-cache", "openssl"],
-                   check=True, capture_output=True)
     print("\n--- Generating new CA keypair ---")
     subprocess.run([
         "openssl", "req", "-x509", "-newkey", "rsa:4096", "-days", "3650",
@@ -170,7 +167,7 @@ spec:
       containers:
         - name: setup
           image: {{ .Values.ca.distributorImage.repository }}:{{ .Values.ca.distributorImage.tag }}
-          command: ["python3", "/scripts/setup-ca.py"]
+          command: ["python3", "-u", "/scripts/setup-ca.py"]
           volumeMounts:
             - name: script
               mountPath: /scripts
