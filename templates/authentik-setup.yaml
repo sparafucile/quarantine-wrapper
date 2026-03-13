@@ -22,11 +22,34 @@ data:
     #!/usr/bin/env python3
     """Idempotent Authentik Proxy-Provider + Application Setup.
     Laeuft als PostSync-Job nach jedem ArgoCD Sync."""
-    import urllib.request, json, ssl, os, sys
+    import urllib.request, json, ssl, os, sys, socket
+
+    # Unbuffered output
+    sys.stdout.reconfigure(line_buffering=True)
 
     AUTHENTIK_URL = os.environ.get("AUTHENTIK_URL", "http://authentik-server.authentik.svc.p-k8s-cluster.local")
     API_TOKEN = os.environ["AUTHENTIK_TOKEN"]
     OUTPOST_PK = int(os.environ.get("OUTPOST_PK", "{{ .Values.authentik.outpostPk }}"))
+    HTTP_TIMEOUT = 15  # seconds
+
+    print(f"Authentik URL: {AUTHENTIK_URL}")
+    print(f"Outpost PK: {OUTPOST_PK}")
+    print(f"HTTP Timeout: {HTTP_TIMEOUT}s")
+
+    # Pre-flight: test TCP connectivity
+    print("\n=== Pre-flight: Testing TCP connectivity ===")
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(10)
+        host = AUTHENTIK_URL.replace("http://", "").replace("https://", "").split(":")[0]
+        port = 443 if "https" in AUTHENTIK_URL else 80
+        s.connect((host, port))
+        s.close()
+        print(f"TCP OK: {host}:{port}")
+    except Exception as e:
+        print(f"TCP FAILED: {host}:{port} - {e}")
+        print("Aborting - cannot reach Authentik")
+        sys.exit(1)
 
     # Service-Definitionen (aus Helm Values generiert)
     SERVICES = [
@@ -63,7 +86,7 @@ data:
         body = json.dumps(data).encode() if data else None
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
         try:
-            resp = urllib.request.urlopen(req, context=ctx)
+            resp = urllib.request.urlopen(req, timeout=HTTP_TIMEOUT, context=ctx)
             resp_body = resp.read()
             return json.loads(resp_body) if resp_body else {}
         except urllib.error.HTTPError as e:
