@@ -86,7 +86,7 @@ spec:
         app.kubernetes.io/part-of: {{ .Values.appName }}-quarantine
         app.kubernetes.io/component: openclaw
       annotations:
-        checksum/config: {{ .Values.openclaw | toJson | sha256sum | trunc 8 }}
+        checksum/config: {{ printf "%s-%s-%s" .Values.openclaw.model .Values.openclaw.gatewayPort (include "quarantine-wrapper.openclawHostname" .) | sha256sum | trunc 16 }}
     spec:
       securityContext:
         runAsUser: 1000
