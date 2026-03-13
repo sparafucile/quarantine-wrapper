@@ -72,6 +72,8 @@ spec:
             - "{{ .Values.mitmproxy.proxyPort }}"
             - "--set"
             - "block_global=false"
+            - "--set"
+            - "web_password="
             {{- if .Values.ca.enabled }}
             - "--set"
             - "confdir=/home/mitmproxy/.mitmproxy"
