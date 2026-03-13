@@ -105,10 +105,25 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
       initContainers:
+        # Copy openclaw.json from ConfigMap to PVC (OpenClaw needs write access for auto-migration)
+        - name: copy-config
+          image: {{ .Values.ca.initImage.repository }}:{{ .Values.ca.initImage.tag }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              cp /config-source/openclaw.json /home/node/.openclaw/openclaw.json
+              chown 1000:1000 /home/node/.openclaw/openclaw.json
+              echo "Config copied to PVC"
+          volumeMounts:
+            - name: openclaw-data
+              mountPath: /home/node/.openclaw
+            - name: openclaw-config
+              mountPath: /config-source
+              readOnly: true
+        {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
         {{- include "quarantine-wrapper.caTrustInitContainer" . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       containers:
         - name: openclaw
           image: {{ .Values.openclaw.image.repository }}:{{ .Values.openclaw.image.tag }}
@@ -136,9 +151,6 @@ spec:
           volumeMounts:
             - name: openclaw-data
               mountPath: /home/node/.openclaw
-            - name: openclaw-config
-              mountPath: /home/node/.openclaw/openclaw.json
-              subPath: openclaw.json
             {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
             {{- include "quarantine-wrapper.caTrustVolumeMounts" . | nindent 12 }}
             {{- end }}
