@@ -9,7 +9,7 @@
 # --- App-Namespace: Gateway Envoy Ingress ---
 # Erlaubt Cilium Envoy (hostNetwork Gateway API) Zugriff auf Quarantine-Pods.
 # Ohne diese Policy: 503 "upstream connect error, connection timeout"
-# Ports konfigurierbar via ingressPorts[] (v2: Apps bringen eigene Services mit)
+# Wenn ingressPorts leer und helloWorld aus: alle Ports erlaubt (port-agnostisch)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -24,6 +24,7 @@ spec:
         - host
         - ingress
         - kube-apiserver
+      {{- if or .Values.ingressPorts .Values.helloWorld.enabled }}
       toPorts:
         - ports:
             {{- range .Values.ingressPorts }}
@@ -34,6 +35,7 @@ spec:
             - port: "{{ .Values.helloWorld.port }}"
               protocol: TCP
             {{- end }}
+      {{- end }}
 ---
 {{- if .Values.cilium.l7Visibility }}
 # L7-Visibility fuer Quarantine-Pods (Hubble HTTP-Monitoring)
@@ -88,11 +90,6 @@ spec:
 {{- if .Values.authentik.enabled }}
 ---
 # --- Gateway-Namespace: Authentik-Setup Egress ---
-# WICHTIG: Kein Hook! Diese Policy muss als regulaere Sync-Ressource deployed werden,
-# BEVOR der PostSync-Job laeuft. ArgoCD deployed Sync-Ressourcen vor PostSync-Hooks.
-# CILIUM PRE-DNAT: toCIDR statt toEndpoints noetig, da Cilium die Policy VOR dem
-# kube-proxy DNAT evaluiert. ClusterIPs haben keine Pod-Identity, daher matcht
-# toEndpoints nicht fuer Service-Traffic.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -105,7 +102,6 @@ spec:
     matchLabels:
       app.kubernetes.io/component: authentik-setup
   egress:
-    # Authentik via Service ClusterIP (Service-CIDR, pre-DNAT)
     - toCIDR:
         - {{ .Values.network.serviceCIDR }}
       toPorts:
@@ -114,7 +110,6 @@ spec:
               protocol: TCP
             - port: "443"
               protocol: TCP
-    # Authentik Pods direkt (post-DNAT / kube-proxy replacement)
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: {{ .Values.authentik.namespace }}
@@ -128,7 +123,6 @@ spec:
               protocol: TCP
             - port: "9443"
               protocol: TCP
-    # DNS
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: kube-system
@@ -144,8 +138,6 @@ spec:
 {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
 ---
 # --- Gateway-Namespace: OpenBao-Setup Egress ---
-# Erlaubt dem CA-Setup-Job den Zugriff auf OpenBao.
-# CILIUM PRE-DNAT: toCIDR fuer Service ClusterIP + toEndpoints fuer Pods.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -158,14 +150,12 @@ spec:
     matchLabels:
       app.kubernetes.io/component: openbao-setup
   egress:
-    # OpenBao via Service ClusterIP (pre-DNAT)
     - toCIDR:
         - {{ .Values.network.serviceCIDR }}
       toPorts:
         - ports:
             - port: "8200"
               protocol: TCP
-    # OpenBao Pods direkt (post-DNAT)
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: openbao
@@ -173,7 +163,6 @@ spec:
         - ports:
             - port: "8200"
               protocol: TCP
-    # DNS
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: kube-system
@@ -188,9 +177,6 @@ spec:
 {{- if .Values.ca.enabled }}
 ---
 # --- Gateway-Namespace: CA-Distributor K8s API-Server Zugriff ---
-# K8s NetworkPolicies koennen nach Cilium-DNAT den kube-apiserver nicht matchen
-# (ClusterIP 10.32.0.1:443 wird zu Master-Node-IPs:6443 uebersetzt).
-# toEntities: kube-apiserver kennt die API-Server-Identity und umgeht dieses Problem.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
