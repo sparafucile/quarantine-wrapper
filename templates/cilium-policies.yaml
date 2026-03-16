@@ -9,6 +9,7 @@
 # --- App-Namespace: Gateway Envoy Ingress ---
 # Erlaubt Cilium Envoy (hostNetwork Gateway API) Zugriff auf Quarantine-Pods.
 # Ohne diese Policy: 503 "upstream connect error, connection timeout"
+# Ports konfigurierbar via ingressPorts[] (v2: Apps bringen eigene Services mit)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -25,8 +26,8 @@ spec:
         - kube-apiserver
       toPorts:
         - ports:
-            {{- range .Values.services }}
-            - port: "{{ .port }}"
+            {{- range .Values.ingressPorts }}
+            - port: "{{ . }}"
               protocol: TCP
             {{- end }}
             {{- if .Values.helloWorld.enabled }}
