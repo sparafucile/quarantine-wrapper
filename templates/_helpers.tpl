@@ -206,6 +206,10 @@ mitmproxy-Service FQDN.
 {{/*
 Proxy-Env-Vars für Quarantine-Pods.
 Wird als Container env-Block eingebunden.
+Setzt Standard-Proxy-Variablen für alle gaengigen Runtimes:
+  - HTTP_PROXY/HTTPS_PROXY/NO_PROXY: Standard fuer curl, Python requests, Go, etc.
+  - NODE_USE_ENV_PROXY=1: Node.js 24+ honoriert HTTP(S)_PROXY erst mit diesem Flag
+  - SSL_CERT_FILE / REQUESTS_CA_BUNDLE / NODE_EXTRA_CA_CERTS: CA-Trust fuer TLS-Interception
 */}}
 {{- define "quarantine-wrapper.proxyEnv" -}}
 {{- $proxyHost := ternary (printf "mitmproxy.%s:%d" (include "quarantine-wrapper.gwNamespace" .) (.Values.mitmproxy.proxyPort | int)) (printf "squid.%s:%d" (include "quarantine-wrapper.gwNamespace" .) (.Values.squid.port | int)) .Values.mitmproxy.enabled -}}
@@ -218,9 +222,14 @@ Wird als Container env-Block eingebunden.
 - name: HTTPS_PROXY
   value: {{ printf "http://%s" $proxyHost | quote }}
 - name: no_proxy
-  value: {{ printf ".%s.svc,.%s.svc,%s" (include "quarantine-wrapper.appNamespace" .) (include "quarantine-wrapper.gwNamespace" .) .Values.network.serviceCIDR | quote }}
+  value: {{ printf "127.0.0.1,localhost,.%s.svc,.%s.svc,%s" (include "quarantine-wrapper.appNamespace" .) (include "quarantine-wrapper.gwNamespace" .) .Values.network.serviceCIDR | quote }}
 - name: NO_PROXY
-  value: {{ printf ".%s.svc,.%s.svc,%s" (include "quarantine-wrapper.appNamespace" .) (include "quarantine-wrapper.gwNamespace" .) .Values.network.serviceCIDR | quote }}
+  value: {{ printf "127.0.0.1,localhost,.%s.svc,.%s.svc,%s" (include "quarantine-wrapper.appNamespace" .) (include "quarantine-wrapper.gwNamespace" .) .Values.network.serviceCIDR | quote }}
+# --- Runtime-spezifische Proxy-Aktivierung ---
+# Node.js 24+ (undici/fetch) honoriert HTTP(S)_PROXY nur mit diesem Flag
+- name: NODE_USE_ENV_PROXY
+  value: "1"
+# --- TLS CA-Trust (mitmproxy Interception) ---
 - name: SSL_CERT_FILE
   value: "/etc/ssl/custom/ca-certificates.crt"
 - name: REQUESTS_CA_BUNDLE
@@ -291,3 +300,4 @@ Wird für CiliumNetworkPolicy toPorts verwendet.
 {{- end }}
 {{- join "," $ports }}
 {{- end }}
+
