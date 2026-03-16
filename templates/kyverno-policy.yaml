@@ -1,0 +1,115 @@
+{{- if .Values.kyverno.enabled }}
+# ============================================================================
+# Kyverno ClusterPolicy: Transparente Proxy/CA-Injection
+# ============================================================================
+# Mutiert alle Pods in Namespaces mit Label quarantine: "true":
+# 1. Injiziert Proxy-Env-Vars in alle Container
+# 2. Fuegt CA-Trust initContainer hinzu
+# 3. Fuegt Volumes/VolumeMounts fuer CA-Bundle hinzu
+#
+# Die Proxy-URL und Gateway-Namespace werden aus den Namespace-Annotations gelesen.
+# So bleibt die Policy app-agnostisch und der Wrapper steuert alles ueber Annotations.
+# ============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: quarantine-proxy-injection
+  labels:
+    {{- include "quarantine-wrapper.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Quarantine Proxy Injection
+    policies.kyverno.io/category: Networking
+    policies.kyverno.io/description: >-
+      Injiziert Proxy-Env-Vars, CA-Trust initContainer und Volumes in alle
+      Pods in Quarantine-Namespaces (Label quarantine=true).
+spec:
+  rules:
+    - name: inject-proxy-config
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaceSelector:
+                matchLabels:
+                  quarantine: "true"
+      context:
+        # Lese Namespace-Annotations ueber K8s API
+        - name: nsAnnotations
+          apiCall:
+            urlPath: '/api/v1/namespaces/{{`{{request.namespace}}`}}'
+            jmesPath: 'metadata.annotations'
+        # Extrahiere einzelne Werte mit Defaults
+        - name: proxyUrl
+          variable:
+            jmesPath: 'nsAnnotations."quarantine.sparafucile.net/proxy-url" || `"http://squid:3128"`'
+        - name: gwNamespace
+          variable:
+            jmesPath: 'nsAnnotations."quarantine.sparafucile.net/gw-namespace" || `"unknown-gw"`'
+        - name: noProxy
+          variable:
+            jmesPath: 'nsAnnotations."quarantine.sparafucile.net/no-proxy" || `"127.0.0.1,localhost"`'
+        - name: caConfigMap
+          variable:
+            jmesPath: 'nsAnnotations."quarantine.sparafucile.net/ca-configmap" || `"mitmproxy-ca-cert"`'
+      mutate:
+        patchStrategicMerge:
+          spec:
+            # --- Env-Vars in ALLE Container injizieren ---
+            containers:
+              - (name): "*"
+                env:
+                  - name: http_proxy
+                    value: '{{`{{proxyUrl}}`}}'
+                  - name: https_proxy
+                    value: '{{`{{proxyUrl}}`}}'
+                  - name: HTTP_PROXY
+                    value: '{{`{{proxyUrl}}`}}'
+                  - name: HTTPS_PROXY
+                    value: '{{`{{proxyUrl}}`}}'
+                  - name: no_proxy
+                    value: '{{`{{noProxy}}`}}'
+                  - name: NO_PROXY
+                    value: '{{`{{noProxy}}`}}'
+                  - name: NODE_USE_ENV_PROXY
+                    value: "1"
+                  - name: SSL_CERT_FILE
+                    value: "/etc/ssl/custom/ca-certificates.crt"
+                  - name: REQUESTS_CA_BUNDLE
+                    value: "/etc/ssl/custom/ca-certificates.crt"
+                  - name: NODE_EXTRA_CA_CERTS
+                    value: "/etc/ssl/custom/ca-certificates.crt"
+                volumeMounts:
+                  - name: quarantine-certs
+                    mountPath: /etc/ssl/custom
+                    readOnly: true
+            # --- CA-Trust initContainer ---
+            initContainers:
+              - name: trust-mitmproxy-ca
+                image: {{ printf "%s:%s" .Values.ca.initImage.repository .Values.ca.initImage.tag }}
+                command: ["/bin/sh", "-c"]
+                args:
+                  - |
+                    if [ -f /ca-cert/mitmproxy-ca-cert.pem ]; then
+                      echo "Merging mitmproxy CA with system trust store..."
+                      cat /etc/ssl/certs/ca-certificates.crt /ca-cert/mitmproxy-ca-cert.pem > /shared-certs/ca-certificates.crt
+                      echo "CA bundle created with mitmproxy CA."
+                    else
+                      echo "WARN: CA cert not found, using system certs"
+                      cp /etc/ssl/certs/ca-certificates.crt /shared-certs/ca-certificates.crt
+                    fi
+                volumeMounts:
+                  - name: quarantine-ca-cert
+                    mountPath: /ca-cert
+                    readOnly: true
+                  - name: quarantine-certs
+                    mountPath: /shared-certs
+            # --- Volumes ---
+            volumes:
+              - name: quarantine-ca-cert
+                configMap:
+                  name: '{{`{{caConfigMap}}`}}'
+                  optional: true
+              - name: quarantine-certs
+                emptyDir: {}
+{{- end }}
