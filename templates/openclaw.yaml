@@ -193,21 +193,38 @@ spec:
         {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
         {{- include "quarantine-wrapper.caTrustInitContainer" . | nindent 8 }}
         {{- end }}
-        # 3) CLI-Tools: kopiert busybox-Applets (vi, less, grep, wget, etc.) aus Alpine
-        #    KEIN apk add! Package-Repos sind in der Quarantine nicht erreichbar (by design)
+        # 3) CLI-Tools: busybox-Applets + nano aus Alpine Packages
+        #    nano ist nicht in busybox enthalten, deshalb apk add via Proxy
         - name: install-tools
           image: {{ printf "%s:%s" .Values.ca.initImage.repository .Values.ca.initImage.tag }}
           command: ["/bin/sh", "-c"]
           args:
             - |
+              # Busybox-Tools (vi, less, grep, etc.)
               cp /bin/busybox /tools/busybox
               for cmd in vi less grep sed awk wget cat head tail wc sort uniq tr; do
                 ln -sf busybox /tools/$cmd
               done
-              echo "CLI tools installed via busybox symlinks"
+              echo "Busybox tools installed"
+              # nano via apk (braucht Proxy + CA-Trust fuer dl-cdn.alpinelinux.org)
+              {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
+              if [ -f /shared-certs/ca-certificates.crt ]; then
+                cp /shared-certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+              fi
+              {{- end }}
+              apk add --no-cache nano 2>/dev/null && cp /usr/bin/nano /tools/nano && echo "nano installed" || echo "WARN: nano install failed (check Squid whitelist for dl-cdn.alpinelinux.org)"
+          {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
+          env:
+            {{- include "quarantine-wrapper.proxyEnv" . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: cli-tools
               mountPath: /tools
+            {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
+            - name: shared-certs
+              mountPath: /shared-certs
+              readOnly: true
+            {{- end }}
       containers:
         - name: openclaw
           image: {{ .Values.openclaw.image.repository }}:{{ .Values.openclaw.image.tag }}
