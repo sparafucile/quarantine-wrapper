@@ -7,8 +7,13 @@ metadata:
   labels:
     {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
     network-zone: quarantine
+    quarantine: "true"
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
+    quarantine.sparafucile.net/proxy-url: {{ include "quarantine-wrapper.proxyURL" . | quote }}
+    quarantine.sparafucile.net/gw-namespace: {{ include "quarantine-wrapper.gwNamespace" . | quote }}
+    quarantine.sparafucile.net/no-proxy: {{ include "quarantine-wrapper.noProxy" . | quote }}
+    quarantine.sparafucile.net/ca-configmap: "mitmproxy-ca-cert"
 ---
 # Gateway-Namespace: Proxy-Stack (Squid, mitmproxy, CA-Distribution)
 # Sync-Wave -10: Muss VOR allen anderen Ressourcen existieren
