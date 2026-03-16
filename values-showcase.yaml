@@ -63,6 +63,10 @@ egress:
     - generativelanguage.googleapis.com      # Google Gemini API
     - deb.debian.org                         # Debian Packages (fuer apt install nano)
     - security.debian.org                    # Debian Security Updates
+    - api.telegram.org                       # Telegram Bot API
+    - github.com                             # GitHub
+    - wikipedia.com                          # Wikipedia
+    - openclaw.ai                            # OpenClaw Updates/Docs
 
 # --- Cilium ---
 cilium:
