@@ -120,31 +120,6 @@ helloWorld:
       cpu: "100m"
 
 # ============================================================
-# OPENCLAW AI-AGENT (standardmaessig AUS)
-# ============================================================
-openclaw:
-  enabled: false
-  image:
-    repository: ghcr.io/openclaw/openclaw
-    tag: latest
-  gatewayPort: 18789
-  hostname: ""                 # Default: p-<appName>-openclaw-k8s.sparafucile.net
-  model: "google/gemini-2.5-flash"
-  storageClass: longhorn
-  storageSize: 5Gi
-  gemini:
-    enabled: true
-    secretName: openclaw-gemini-key  # K8s Secret (via ExternalSecret)
-    openbaoPath: ""            # Default: infra/google-ai
-  resources:
-    requests:
-      memory: "512Mi"
-      cpu: "200m"
-    limits:
-      memory: "2Gi"
-      cpu: "2000m"
-
-# ============================================================
 # NETZWERK (Cluster-spezifisch, selten zu aendern)
 # ============================================================
 network:
