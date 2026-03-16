@@ -1,28 +1,32 @@
 # ============================================================
-# Quarantine-Wrapper Helm Values
+# Quarantine-Wrapper Helm Values (v2)
 # Generischer Wrapper fuer isolierte Quarantine-Umgebungen
 # ============================================================
 
 # ============================================================
 # PFLICHT: App-Name (steuert alle dynamischen Namen)
 # ============================================================
-appName: ""                    # z.B. "openclaw" -> openclaw-quarantine + openclaw-quarantine-gw
+appName: ""                    # z.B. "showcase" -> showcase-quarantine + showcase-quarantine-gw
 
 # ============================================================
-# INGRESS: App-Services
+# KYVERNO: Transparente Proxy/CA-Injection (v2)
 # ============================================================
-# Fuer jeden Service wird automatisch erstellt:
-# - NetworkPolicy (Ingress-Freigabe auf den Port)
-# - CiliumNetworkPolicy (fromEntities: ingress)
-# - HTTPRoute (Gateway API)
-# - Optional: Authentik Proxy-Provider + Application
-services: []
-  # - name: web                  # Service-Name (muss dem K8s Service in der App matchen)
-  #   port: 8080
-  #   hostname: p-openclaw-k8s.sparafucile.net
-  #   authentik:
-  #     enabled: true            # Authentik SSO fuer diesen Service
-  #     skipPathRegex: ""        # API-Bypass Pattern
+# Wenn aktiviert, wird eine ClusterPolicy erstellt die automatisch
+# Proxy-Env-Vars, CA-Trust-initContainer und Volumes in alle Pods
+# im App-Namespace injiziert. Apps brauchen sich nicht selbst
+# um Proxy-Konfiguration zu kuemmern.
+kyverno:
+  enabled: true
+
+# ============================================================
+# INGRESS: Erlaubte Ports fuer App-Services (v2)
+# ============================================================
+# Liste der TCP-Ports die von Gateway/LAN/kube-system erreichbar sein sollen.
+# Apps deployen ihre eigenen Services und HTTPRoutes — der Wrapper
+# muss nur wissen welche Ports die Firewall oeffnen soll.
+ingressPorts: []
+  # Beispiel fuer OpenClaw:
+  # - 18789
 
 # ============================================================
 # EGRESS: Konfigurierbar
@@ -39,13 +43,6 @@ egress:
   #   - api.openai.com                      # OpenAI API
   #   - registry.npmjs.org                  # npm Registry
   extraEgressRules: []         # Zusaetzliche K8s NetworkPolicy egress rules
-  # Beispiel extraEgressRules:
-  # - to:
-  #     - ipBlock:
-  #         cidr: 10.0.0.0/8
-  #   ports:
-  #     - port: 5432
-  #       protocol: TCP
 
 # ============================================================
 # PROXY: Squid
@@ -74,7 +71,7 @@ mitmproxy:
   proxyPort: 8080
   webPort: 8081
   hostname: ""                 # Default: p-<appName>-mitmweb-k8s.sparafucile.net
-  openbaoPath: ""              # Default: apps/quarantine/<appName>/mitmweb-password
+  openbaoPath: ""              # Default: apps/<appName>-quarantine/mitmweb-password
   storageClass: longhorn
   storageSize: 100Mi
   resources:
@@ -92,7 +89,7 @@ mitmproxy:
 # ============================================================
 ca:
   enabled: true
-  openbaoPath: ""              # Default: apps/quarantine/<appName>/mitmproxy-ca
+  openbaoPath: ""              # Default: apps/<appName>-quarantine/mitmproxy-ca
   secretName: mitmproxy-ca     # Name des K8s Secret im gw-Namespace
   distributorImage:
     repository: python
@@ -145,7 +142,7 @@ authentik:
   namespace: authentik
   # API-Credentials fuer automatische Provider-Erstellung (Phase 5)
   apiTokenSecret: ""           # K8s Secret mit Authentik API-Token (Default: authentik-api-token)
-  openbaoPath: ""              # Default: apps/quarantine/<appName>/authentik-token
+  openbaoPath: ""              # Default: infra/authentik/api-token (shared)
   outpostPk: 1                 # Primary Key des Embedded Outpost
 
 # ============================================================
