@@ -131,17 +131,6 @@ Sonst: p-<appName>-hello-k8s.<domain>
 {{- end }}
 {{- end }}
 
-{{/*
-Default-Hostname für OpenClaw Gateway.
-Wenn openclaw.hostname gesetzt ist, wird dieser verwendet.
-Sonst: p-<appName>-openclaw-k8s.<domain>
-*/}}
-{{- define "quarantine-wrapper.openclawHostname" -}}
-{{- if .Values.openclaw.hostname }}
-{{- .Values.openclaw.hostname }}
-{{- else }}
-{{- printf "p-%s-openclaw-k8s.%s" .Values.appName .Values.gateway.domain }}
-{{- end }}
 {{- end }}
 
 {{/* ============================================================
