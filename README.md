@@ -1,11 +1,11 @@
 # Quarantine-Wrapper
 
-Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer beliebige ArgoCD-Apps. Jede Instanz bekommt eigene Namespaces, vollstaendige NetworkPolic-Isolation, einen dedizierten HTTP/HTTPS-Proxy-Stack und optionale Authentik-SSO-Integration.
+Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer beliebige ArgoCD-Apps. Jede Instanz bekommt eigene Namespaces, vollstaendige NetworkPolicy-Isolation, einen dedizierten HTTP/HTTPS-Proxy-Stack und optionale Authentik-SSO-Integration.
 
 ## Overview
 
 | Property | Value |
-|--------------|----------|
+|----------|-------|
 | **Chart** | quarantine-wrapper 1.6.1 |
 | **Type** | Infra-Chart (kein bjw-s) |
 | **Namespaces** | `<appName>-quarantine` + `<appName>-quarantine-gw` |
@@ -15,60 +15,161 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 | **mitmweb PW** | Auto-generiert via OpenBao, als `web_password` an mitmweb uebergeben |
 | **Auth** | Authentik Proxy-Provider (PostSync-Job, auto-discovery) |
 
+## Weiterführende Dokumentation
+
+| Dokument | Inhalt |
+|----------|--------|
+| [docs/VALUES.md](docs/VALUES.md) | Vollstaendige Values-Referenz (alle Parameter mit Defaults und Beschreibung) |
+| [docs/NETWORK-POLICIES.md](docs/NETWORK-POLICIES.md) | NetworkPolicy-Konzept (App-NS, Gateway-NS, CiliumNetworkPolicies) |
+| [docs/LESSONS.md](docs/LESSONS.md) | Lessons Learned nach Version (v1.4.x – v1.6.1) |
+
+## Architektur
+
+```
++---------------------------------------------------------+
+|  <appName>-quarantine (Namespace)                        |
+|  +----------+  +----------+  +----------+               |
+|  | App Pod  |  | App Pod  |  | hello-   | (optional)    |
+|  +----+-----+  +----+-----+  | world    |               |
+|       | Pod-zu-Pod   |        +----------+               |
+|       +------+-------+                                   |
+|              | Egress nur zu Proxy                        |
++--------------+-------------------------------------------+
+|              v                                           |
+|  <appName>-quarantine-gw (Namespace)                     |
+|  +--------------+     +--------------+                   |
+|  | mitmproxy    |---->| Squid Proxy  |  (Domain-Filter)  |
+|  | :8080/:8081  |     | :3128        |                   |
+|  | (upstream)   |     +------+-------+                   |
+|  +--------------+            |                           |
+|       |                      v                           |
+|   mitmweb UI            Internet                         |
++---------------------------------------------------------+
+```
+
+**Proxy-Kette:** App-Pods nutzen mitmproxy als HTTP(S)-Proxy. mitmproxy laeuft im `upstream`-Modus und leitet allen Traffic an Squid weiter. Squid filtert nach Domain-Whitelist und leitet erlaubten Traffic ins Internet. Dadurch sind ALLE Requests (auch von Squid abgelehnte) in mitmweb sichtbar. Nur Squid hat Internet-Egress — mitmproxy kann das Internet nicht direkt erreichen.
+
+## Deployment
+
+Jede Quarantine-Instanz wird als eigene ArgoCD-App deployed:
+
+```bash
+# Helm Template testen
+helm template <appName> . -f values-<appName>.yaml
+
+# Lint
+helm lint . -f values-<appName>.yaml
+```
+
+### Voraussetzungen fuer neue Instanzen
+
+1. **Values-Datei** im Repo erstellen (`values-<appName>.yaml`)
+2. **ArgoCD-App** erstellen (Source: dieses Repo, Helm mit `valueFiles: ["values-<appName>.yaml"]`, `ServerSideApply=true`, `ignoreDifferences` fuer HTTPRoute-Defaults)
+3. Alles weitere passiert **vollautomatisch** beim ersten Sync:
+   - Namespaces, Policies, Proxy, CA-Generierung, CA-Distribution, Authentik-Setup
+
+**CA-Keypair + mitmweb-Passwort:** Werden automatisch beim ersten ArgoCD-Sync durch einen Sync-Hook Job (Wave -5) generiert und in OpenBao gespeichert. Pfade: `apps/quarantine/<appName>/mitmproxy-ca` (CA) und `apps/quarantine/<appName>/mitmweb-password` (Passwort). Manuelle Secret-Erstellung ist NICHT noetig.
+
+**Authentik-Token:** Falls `authentik.enabled`: Der gemeinsame Token liegt unter `infra/authentik/api-token` (wird einmal zentral angelegt, nicht pro App).
+
+**Einmalige Cluster-Voraussetzungen** (bereits eingerichtet):
+- OpenBao K8s Auth Role `quarantine-setup` (SA `openbao-setup`, alle Namespaces)
+- OpenBao Policy `quarantine-setup-write` (write auf `secret/data/apps/quarantine/*`)
+- ClusterSecretStore `openbao` (ESO)
+- Shared Authentik Token unter `infra/authentik/api-token`
+
+### ArgoCD-App-Konfiguration
+
+```yaml
+syncPolicy:
+  automated:
+    selfHeal: true
+  syncOptions:
+    - CreateNamespace=false
+    - ServerSideApply=true
+ignoreDifferences:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    jsonPointers:
+      - /spec/rules/0/backendRefs/0/group
+      - /spec/rules/0/backendRefs/0/kind
+      - /spec/rules/0/backendRefs/0/weight
+```
+
+## Minimalbeispiel (ohne Authentik)
+
+```yaml
+appName: default
+services: []
+mitmproxy:
+  enabled: true
+  authentik:
+    enabled: false
+ca:
+  enabled: true
+helloWorld:
+  enabled: true
+authentik:
+  enabled: false
+cilium:
+  l7Visibility: false
+```
+
+## Minimalbeispiel (mit Authentik)
+
+```yaml
+appName: myapp
+services:
+  - name: web
+    port: 8080
+    hostname: p-myapp-k8s.sparafucile.net
+    authentik:
+      enabled: true
+mitmproxy:
+  enabled: true
+  authentik:
+    enabled: true
+authentik:
+  enabled: true
+```
+
 ## Templates
 
-| Template | Resources |
+| Template | Ressourcen |
 |----------|-----------|
+| `_helpers.tpl` | Namespace-Helpers, Label-Helpers, Hostname-Defaults, Proxy-Env |
+| `namespaces.yaml` | 2 Namespaces |
+| `networkpolicies-quarantine.yaml` | 7 NetworkPolicies |
+| `networkpolicies-gateway.yaml` | 7-9 NetworkPolicies (je nach authentik.enabled) |
+| `cilium-policies.yaml` | 3-5 CiliumNetworkPolicies |
+| `squid.yaml` | ConfigMap, Deployment, Service |
+| `mitmproxy.yaml` | PVC, Deployment, Service |
+| `openbao-setup.yaml` | SA, ConfigMap (Python-Script), Sync-Hook Job (CA + mitmweb-PW auto-gen, Wave -5) |
+| `external-secret.yaml` | ExternalSecret(s) (CA, mitmweb-PW + opt. App-Secrets, Authentik-Token) |
 | `openclaw.yaml` | PVC, ConfigMap (openclaw.json + merge-config.py), Deployment (4 initContainers: merge-config, trust-ca, install-tools, install-nano), Service |
+| `mitmproxy-ca-distribution.yaml` | SA, RBAC, Script-CM, CronJob, PostSync-Job |
+| `httproutes.yaml` | HTTPRoutes (dynamisch aus services[]) |
+| `reference-grants.yaml` | ReferenceGrants (Gateway + opt. Authentik) |
+| `authentik-setup.yaml` | PostSync-Job (Proxy-Provider + Application + Outpost) |
+| `hello-world.yaml` | Debug-Pod mit CA-Trust + Proxy-Env |
+| `rbac.yaml` | Workload-RBAC (read-only) |
 
-## Lessons Learned (Session 198)
+## Sync-Wave Ordering
 
-### NODE_USE_ENV_PROXY fuer Node.js 24+ (v1.6.0)
+| Wave | Ressourcen | Grund |
+|------|-----------|-------|
+| -10 | Namespaces | Muessen existieren bevor Ressourcen darin deployed werden |
+| -5 | OpenBao-Setup (SA, ConfigMap, Job) | CA + mitmweb-PW muessen in OpenBao existieren bevor ExternalSecrets syncen |
+| 0 | Alles andere (Default) | NetworkPolicies, Deployments, Services, ExternalSecrets |
 
-**Problem:** Node.js 24+ mit undici/fetch ignoriert HTTP_PROXY/HTTPS_PROXY Environment-Variablen standardmaessig. In der Quarantine-Umgebung fuehrt das dazu, dass HTTPS-Requests direkt rausgehen und von der NetworkPolicy blockiert werden → Timeout.
+Der `openbao-ca-setup` Job (Wave -5) ist ein ArgoCD Sync-Hook (`argocd.argoproj.io/hook: Sync`). Er laeuft bei jedem Sync, prueft ob CA-Keypair und mitmweb-Passwort bereits existieren und erstellt sie nur bei Bedarf. `hook-delete-policy: BeforeHookCreation` sorgt dafuer, dass alte Jobs vor dem naechsten Sync geloescht werden.
 
-**Fix:** `NODE_USE_ENV_PROXY=1` als Environment-Variable setzen. Ist im `proxyEnv` Helm-Helper enthalten und wird automatisch an alle Pods verteilt.
+**Achtung beim Loeschen:** Falls eine App geloescht wird waehrend der Hook-Job laeuft, kann die Loeschung blockiert werden (Finalizer haengt). Fix: Job manuell loeschen mit `kubectl delete job openbao-ca-setup -n <appName>-quarantine-gw`.
 
-### Smart Merge fuer openclaw.json (v1.6.0)
+## Abhaengigkeiten
 
-**Problem:** OpenClaw modifiziert `openclaw.json` zur Laufzeit (auth tokens, channel configs, device pairings, model auto-migration). Ein blindes Ueberschreiben per ConfigMap bei Pod-Restart zerstoert diese Runtime-Daten.
-
-**Fix:** initContainer `merge-config` (python:3.12-slim) fuehrt selektiven Merge durch: GitOps-kontrollierte Keys (models, gateway.port/bind/mode/controlUi, agents.defaults.model) werden aus ConfigMap ueberschrieben, Runtime-Keys (gateway.auth, channels, devices, meta, commands) bleiben erhalten. Bei Erstinstallation wird die volle ConfigMap kopiert. Backup als `openclaw.json.pre-merge` vor jedem Merge.
-
-### CLI-Tools in Quarantine-Pods (v1.6.1)
-
-**Problem:** Im OpenClaw-Container (non-root, UID 1000) kann weder `apt-get install` (braucht root) noch `apk add` (falsches Base-Image) ausgefuehrt werden.
-
-**Fix:** Zwei initContainers: (1) `install-tools` (Alpine) kopiert busybox und erstellt Symlinks fuer vi, less, grep, sed, awk, wget etc. (2) `install-nano` (OpenClaw-Image mit `securityContext.runAsUser: 0`) installiert nano via apt-get und kopiert das Binary. Beide schreiben in ein emptyDir-Volume, das als `/usr/local/tools` readonly in den Haupt-Container gemountet wird. Braucht `deb.debian.org` + `security.debian.org` in der Squid-Whitelist.
-
-### Recreate-Strategie bei RWO-PVCs (v1.6.1)
-
-**Problem:** ReadWriteOnce-PVCs koennen nur auf einem Node gemountet werden. Mit RollingUpdate-Strategie startet K8s den neuen Pod BEVOR der alte terminiert wird. Landet der neue Pod auf einem anderen Node, haengt er ewig in `Init:0/x` weil die PVC nicht gemountet werden kann.
-
-**Fix:** `strategy.type: Recreate` im Deployment-Spec. K8s terminiert erst den alten Pod, dann startet es den neuen — PVC ist immer frei.
-
-### ServerSideApply Array-Merge bei initContainern (v1.6.1)
-
-**Problem:** SSA mergt Arrays nach `name`-Feld statt sie zu ersetzen. Beim Umbenennen eines initContainers (z.B. `copy-config` → `merge-config`) bleibt der alte bestehen, das Deployment hat dann mehr initContainers als erwartet.
-
-**Fix:** Einmalig mit `Replace=true` ueber ArgoCD syncen: `POST /api/v1/applications/<app>/sync` mit `syncOptions: {items: ["Replace=true"]}` und gezieltem `resources`-Filter fuer das betroffene Deployment.
-
-### Cilium Stale Endpoint nach Node-Wechsel (v1.6.1)
-
-**Problem:** Wenn ein Pod durch Recreate-Strategie auf einen anderen Node wandert, kann Cilium's Envoy den alten Endpoint gecacht halten. Ergebnis: "upstream connect error / Connection timed out" (503) obwohl der Pod Ready ist und kubelet Health-Checks bestehen.
-
-**Fix:** Pod loeschen (erneuter Restart), damit Cilium den Endpoint frisch programmiert. Tritt besonders nach erstmaliger Umstellung auf Recreate-Strategie auf.
-
-### OpenClaw (App-spezifisch)
-
-| Parameter | Default | Beschreibung |
-|-----------|---------|-------------|
-| `openclaw.enabled` | `false` | OpenClaw Deployment aktivieren |
-| `openclaw.image.repository` | `ghcr.io/openclaw/openclaw` | Container-Image |
-| `openclaw.image.tag` | `latest` | Image-Tag |
-| `openclaw.gatewayPort` | `18789` | Gateway-Port |
-| `openclaw.model` | `google/gemini-2.5-flash` | Primaeres AI-Modell |
-| `openclaw.storageClass` | `longhorn` | PVC StorageClass |
-| `openclaw.storageSize` | `5Gi` | PVC-Groesse |
-| `openclaw.gemini.enabled` | `true` | Gemini Provider aktivieren |
-| `openclaw.gemini.secretName` | `openclaw-gemini-key` | K8s Secret fuer Gemini API Key |
+- ClusterSecretStore `openbao` (ESO)
+- Cilium Gateway API (cluster-gateway in gateway-system)
+- Authentik (falls `authentik.enabled`)
+- Longhorn (fuer mitmproxy PVC)
+- ExternalDNS (fuer HTTPRoute-Annotations)
