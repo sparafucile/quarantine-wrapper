@@ -131,33 +131,32 @@ Sonst: p-<appName>-hello-k8s.<domain>
 {{- end }}
 {{- end }}
 
-{{- end }}
-
 {{/* ============================================================
      OPENBAO / EXTERNALSECRET HELPERS
      ============================================================ */}}
 
 {{/*
 OpenBao-Pfad für das mitmproxy CA-Keypair.
-Default: apps/quarantine/<appName>/mitmproxy-ca
+v2-Schema: apps/<appName>-quarantine/mitmproxy-ca
+(Namespace-Name ist unique und reicht als Differenzierung)
 */}}
 {{- define "quarantine-wrapper.openbaoCAPath" -}}
 {{- if .Values.ca.openbaoPath }}
 {{- .Values.ca.openbaoPath }}
 {{- else }}
-{{- printf "apps/quarantine/%s/mitmproxy-ca" .Values.appName }}
+{{- printf "apps/%s-quarantine/mitmproxy-ca" .Values.appName }}
 {{- end }}
 {{- end }}
 
 {{/*
 OpenBao-Pfad für das mitmweb Web-UI Passwort.
-Default: apps/quarantine/<appName>/mitmweb-password
+v2-Schema: apps/<appName>-quarantine/mitmweb-password
 */}}
 {{- define "quarantine-wrapper.openbaoMitmwebPath" -}}
 {{- if .Values.mitmproxy.openbaoPath }}
 {{- .Values.mitmproxy.openbaoPath }}
 {{- else }}
-{{- printf "apps/quarantine/%s/mitmweb-password" .Values.appName }}
+{{- printf "apps/%s-quarantine/mitmweb-password" .Values.appName }}
 {{- end }}
 {{- end }}
 
@@ -175,11 +174,11 @@ Per-App override via authentik.openbaoPath möglich.
 {{- end }}
 
 {{/* ============================================================
-     PROXY-HELPERS
+     PROXY-HELPERS (v2: Kyverno liest diese aus Namespace-Annotations)
      ============================================================ */}}
 
 {{/*
-Squid-Service FQDN (für NetworkPolicies und Env-Vars in App-Pods).
+Squid-Service FQDN (für NetworkPolicies).
 */}}
 {{- define "quarantine-wrapper.squidFQDN" -}}
 {{- printf "squid.%s.svc.p-k8s-cluster.local" (include "quarantine-wrapper.gwNamespace" .) }}
@@ -193,27 +192,42 @@ mitmproxy-Service FQDN.
 {{- end }}
 
 {{/*
-Proxy-Env-Vars für Quarantine-Pods.
-Wird als Container env-Block eingebunden.
-Setzt Standard-Proxy-Variablen für alle gaengigen Runtimes:
-  - HTTP_PROXY/HTTPS_PROXY/NO_PROXY: Standard fuer curl, Python requests, Go, etc.
-  - NODE_USE_ENV_PROXY=1: Node.js 24+ honoriert HTTP(S)_PROXY erst mit diesem Flag
-  - SSL_CERT_FILE / REQUESTS_CA_BUNDLE / NODE_EXTRA_CA_CERTS: CA-Trust fuer TLS-Interception
+Proxy-URL für Namespace-Annotation.
+Kyverno liest diese Annotation und injiziert sie als Env-Var in alle Pods.
+*/}}
+{{- define "quarantine-wrapper.proxyURL" -}}
+{{- if .Values.mitmproxy.enabled }}
+{{- printf "http://mitmproxy.%s:%d" (include "quarantine-wrapper.gwNamespace" .) (.Values.mitmproxy.proxyPort | int) }}
+{{- else }}
+{{- printf "http://squid.%s:%d" (include "quarantine-wrapper.gwNamespace" .) (.Values.squid.port | int) }}
+{{- end }}
+{{- end }}
+
+{{/*
+NO_PROXY Wert für Namespace-Annotation.
+*/}}
+{{- define "quarantine-wrapper.noProxy" -}}
+{{- printf "127.0.0.1,localhost,.%s.svc,.%s.svc,%s" (include "quarantine-wrapper.appNamespace" .) (include "quarantine-wrapper.gwNamespace" .) .Values.network.serviceCIDR }}
+{{- end }}
+
+{{/*
+Proxy-Env-Vars für Quarantine-Pods (Legacy-Helper, wird von Kyverno-Policy abgeloest).
+Wird weiterhin vom helloWorld-Pod und anderen Wrapper-eigenen Workloads verwendet.
 */}}
 {{- define "quarantine-wrapper.proxyEnv" -}}
-{{- $proxyHost := ternary (printf "mitmproxy.%s:%d" (include "quarantine-wrapper.gwNamespace" .) (.Values.mitmproxy.proxyPort | int)) (printf "squid.%s:%d" (include "quarantine-wrapper.gwNamespace" .) (.Values.squid.port | int)) .Values.mitmproxy.enabled -}}
+{{- $proxyURL := include "quarantine-wrapper.proxyURL" . -}}
 - name: http_proxy
-  value: {{ printf "http://%s" $proxyHost | quote }}
+  value: {{ $proxyURL | quote }}
 - name: https_proxy
-  value: {{ printf "http://%s" $proxyHost | quote }}
+  value: {{ $proxyURL | quote }}
 - name: HTTP_PROXY
-  value: {{ printf "http://%s" $proxyHost | quote }}
+  value: {{ $proxyURL | quote }}
 - name: HTTPS_PROXY
-  value: {{ printf "http://%s" $proxyHost | quote }}
+  value: {{ $proxyURL | quote }}
 - name: no_proxy
-  value: {{ printf "127.0.0.1,localhost,.%s.svc,.%s.svc,%s" (include "quarantine-wrapper.appNamespace" .) (include "quarantine-wrapper.gwNamespace" .) .Values.network.serviceCIDR | quote }}
+  value: {{ include "quarantine-wrapper.noProxy" . | quote }}
 - name: NO_PROXY
-  value: {{ printf "127.0.0.1,localhost,.%s.svc,.%s.svc,%s" (include "quarantine-wrapper.appNamespace" .) (include "quarantine-wrapper.gwNamespace" .) .Values.network.serviceCIDR | quote }}
+  value: {{ include "quarantine-wrapper.noProxy" . | quote }}
 # --- Runtime-spezifische Proxy-Aktivierung ---
 # Node.js 24+ (undici/fetch) honoriert HTTP(S)_PROXY nur mit diesem Flag
 - name: NODE_USE_ENV_PROXY
@@ -228,8 +242,8 @@ Setzt Standard-Proxy-Variablen für alle gaengigen Runtimes:
 {{- end }}
 
 {{/*
-CA-Trust initContainer für Quarantine-Pods.
-Installiert das mitmproxy CA-Zertifikat im Trust-Store.
+CA-Trust initContainer für Quarantine-Pods (Legacy-Helper, wird von Kyverno-Policy abgeloest).
+Wird weiterhin vom helloWorld-Pod und anderen Wrapper-eigenen Workloads verwendet.
 */}}
 {{- define "quarantine-wrapper.caTrustInitContainer" -}}
 - name: trust-mitmproxy-ca
@@ -254,7 +268,7 @@ Installiert das mitmproxy CA-Zertifikat im Trust-Store.
 {{- end }}
 
 {{/*
-CA-Trust Volumes für Quarantine-Pods.
+CA-Trust Volumes für Quarantine-Pods (Legacy-Helper).
 */}}
 {{- define "quarantine-wrapper.caTrustVolumes" -}}
 - name: mitmproxy-ca-cert
@@ -266,27 +280,10 @@ CA-Trust Volumes für Quarantine-Pods.
 {{- end }}
 
 {{/*
-CA-Trust Volume-Mounts für den App-Container.
+CA-Trust Volume-Mounts für den App-Container (Legacy-Helper).
 */}}
 {{- define "quarantine-wrapper.caTrustVolumeMounts" -}}
 - name: shared-certs
   mountPath: /etc/ssl/custom
   readOnly: true
 {{- end }}
-
-{{/* ============================================================
-     SERVICE-PORT HELPERS
-     ============================================================ */}}
-
-{{/*
-Generiert eine kommaseparierte Liste aller Service-Ports.
-Wird für CiliumNetworkPolicy toPorts verwendet.
-*/}}
-{{- define "quarantine-wrapper.servicePorts" -}}
-{{- $ports := list }}
-{{- range .Values.services }}
-{{- $ports = append $ports (.port | toString) }}
-{{- end }}
-{{- join "," $ports }}
-{{- end }}
-
