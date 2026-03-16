@@ -113,17 +113,3 @@ Der `proxyEnv` Helm-Helper setzt folgende Umgebungsvariablen fuer alle Quarantin
 | Parameter | Default | Beschreibung |
 |-----------|---------|-------------|
 | `cilium.l7Visibility` | `false` | Hubble L7 HTTP-Monitoring |
-
-## OpenClaw (App-spezifisch)
-
-| Parameter | Default | Beschreibung |
-|-----------|---------|-------------|
-| `openclaw.enabled` | `false` | OpenClaw Deployment aktivieren |
-| `openclaw.image.repository` | `ghcr.io/openclaw/openclaw` | Container-Image |
-| `openclaw.image.tag` | `latest` | Image-Tag |
-| `openclaw.gatewayPort` | `18789` | Gateway-Port |
-| `openclaw.model` | `google/gemini-2.5-flash` | Primaeres AI-Modell |
-| `openclaw.storageClass` | `longhorn` | PVC StorageClass |
-| `openclaw.storageSize` | `5Gi` | PVC-Groesse |
-| `openclaw.gemini.enabled` | `true` | Gemini Provider aktivieren |
-| `openclaw.gemini.secretName` | `openclaw-gemini-key` | K8s Secret fuer Gemini API Key |
