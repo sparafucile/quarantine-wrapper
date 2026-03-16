@@ -61,7 +61,8 @@ egress:
   squidAllowedDomains:
     - google.com                             # Test: erlaubt
     - generativelanguage.googleapis.com      # Google Gemini API
-    - dl-cdn.alpinelinux.org                 # Alpine Packages (fuer nano im init-Container)
+    - deb.debian.org                         # Debian Packages (fuer apt install nano)
+    - security.debian.org                    # Debian Security Updates
 
 # --- Cilium ---
 cilium:
