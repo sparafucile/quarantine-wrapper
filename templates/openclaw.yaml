@@ -207,15 +207,30 @@ spec:
           volumeMounts:
             - name: cli-tools
               mountPath: /tools
-      containers:
-        - name: openclaw
+        # 4) nano: apt install im OpenClaw-Image (Debian bookworm, braucht root)
+        #    Pod-securityContext ist runAsUser:1000, deshalb override auf 0
+        - name: install-nano
           image: {{ .Values.openclaw.image.repository }}:{{ .Values.openclaw.image.tag }}
+          securityContext:
+            runAsUser: 0
           command: ["/bin/sh", "-c"]
           args:
             - |
-              # nano installieren (Debian apt im node:24-bookworm Image)
-              apt-get update -qq && apt-get install -y -qq nano >/dev/null 2>&1 && echo "nano installed" || echo "WARN: nano install failed"
-              exec node openclaw.mjs gateway --allow-unconfigured
+              apt-get update -qq && apt-get install -y -qq nano >/dev/null 2>&1 && cp /usr/bin/nano /tools/nano && echo "nano installed" || echo "WARN: nano install failed"
+          {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
+          env:
+            {{- include "quarantine-wrapper.proxyEnv" . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: cli-tools
+              mountPath: /tools
+            {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
+            {{- include "quarantine-wrapper.caTrustVolumeMounts" . | nindent 12 }}
+            {{- end }}
+      containers:
+        - name: openclaw
+          image: {{ .Values.openclaw.image.repository }}:{{ .Values.openclaw.image.tag }}
+          command: ["node", "openclaw.mjs", "gateway", "--allow-unconfigured"]
           ports:
             - containerPort: {{ .Values.openclaw.gatewayPort }}
               name: gateway
