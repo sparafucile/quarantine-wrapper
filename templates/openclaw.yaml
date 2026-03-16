@@ -77,6 +77,79 @@ data:
         }
       }
     }
+  merge-config.py: |
+    #!/usr/bin/env python3
+    """Smart Merge: GitOps-kontrollierte Keys ueberschreiben,
+    Runtime-Keys (auth, channels, devices, meta) beibehalten."""
+    import json, sys, os, shutil
+
+    GITOPS_SRC = "/config-source/openclaw.json"
+    RUNTIME_CFG = "/home/node/.openclaw/openclaw.json"
+
+    # Keys die GitOps kontrolliert (werden IMMER aus ConfigMap ueberschrieben)
+    GITOPS_KEYS = ["models", "gateway.port", "gateway.bind", "gateway.mode",
+                   "gateway.controlUi", "agents.defaults.model"]
+
+    def deep_set(d, path, value):
+        """Setzt einen verschachtelten Key: 'gateway.port' -> d['gateway']['port']"""
+        keys = path.split(".")
+        for k in keys[:-1]:
+            d = d.setdefault(k, {})
+        d[keys[-1]] = value
+
+    def deep_get(d, path, default=None):
+        """Liest einen verschachtelten Key."""
+        keys = path.split(".")
+        for k in keys:
+            if isinstance(d, dict) and k in d:
+                d = d[k]
+            else:
+                return default
+        return d
+
+    if not os.path.exists(RUNTIME_CFG):
+        # Erstinstallation: volle Kopie
+        shutil.copy2(GITOPS_SRC, RUNTIME_CFG)
+        os.chown(RUNTIME_CFG, 1000, 1000)
+        print("INIT: Erste Installation — volle Kopie aus ConfigMap")
+        sys.exit(0)
+
+    # Lade beide Configs
+    with open(GITOPS_SRC) as f:
+        gitops = json.load(f)
+    with open(RUNTIME_CFG) as f:
+        runtime = json.load(f)
+
+    # Backup
+    shutil.copy2(RUNTIME_CFG, RUNTIME_CFG + ".pre-merge")
+
+    # Merge: nur GitOps-Keys ueberschreiben
+    changes = []
+    for key_path in GITOPS_KEYS:
+        new_val = deep_get(gitops, key_path)
+        old_val = deep_get(runtime, key_path)
+        if new_val is not None:
+            if old_val != new_val:
+                changes.append(key_path)
+            deep_set(runtime, key_path, new_val)
+
+    # Zurueckschreiben
+    with open(RUNTIME_CFG, "w") as f:
+        json.dump(runtime, f, indent=2)
+    os.chown(RUNTIME_CFG, 1000, 1000)
+
+    if changes:
+        print(f"MERGE: GitOps-Keys aktualisiert: {', '.join(changes)}")
+    else:
+        print("MERGE: Keine GitOps-Aenderungen — Runtime-Config beibehalten")
+
+    # Zeige erhaltene Runtime-Keys
+    preserved = []
+    for key in ["gateway.auth", "channels", "devices", "meta", "commands"]:
+        if deep_get(runtime, key) is not None:
+            preserved.append(key)
+    if preserved:
+        print(f"PRESERVE: Runtime-Keys erhalten: {', '.join(preserved)}")
 ---
 # --- Deployment ---
 apiVersion: apps/v1
@@ -106,26 +179,35 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
       initContainers:
-        # Copy openclaw.json from ConfigMap to PVC (OpenClaw needs write access for auto-migration)
-        - name: copy-config
-          image: {{ .Values.ca.initImage.repository }}:{{ .Values.ca.initImage.tag }}
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              # Always overwrite with ConfigMap version (GitOps: config comes from Helm chart)
-              # OpenClaw may auto-migrate on startup, but those changes are ephemeral
-              cp /config-source/openclaw.json /home/node/.openclaw/openclaw.json
-              chown 1000:1000 /home/node/.openclaw/openclaw.json
-              echo "Config deployed from ConfigMap (GitOps-managed)"
+        # 1) Smart-Merge: GitOps-Keys ueberschreiben, Runtime-Keys (auth, channels, meta) beibehalten
+        - name: merge-config
+          image: python:3.12-slim
+          command: ["python3", "/config-source/merge-config.py"]
           volumeMounts:
             - name: openclaw-data
               mountPath: /home/node/.openclaw
             - name: openclaw-config
               mountPath: /config-source
               readOnly: true
+        # 2) CA-Trust fuer mitmproxy TLS-Interception
         {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
         {{- include "quarantine-wrapper.caTrustInitContainer" . | nindent 8 }}
         {{- end }}
+        # 3) CLI-Tools: kopiert busybox-Applets (vi, less, grep, wget, etc.) aus Alpine
+        #    KEIN apk add! Package-Repos sind in der Quarantine nicht erreichbar (by design)
+        - name: install-tools
+          image: {{ printf "%s:%s" .Values.ca.initImage.repository .Values.ca.initImage.tag }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              cp /bin/busybox /tools/busybox
+              for cmd in vi less grep sed awk wget cat head tail wc sort uniq tr; do
+                ln -sf busybox /tools/$cmd
+              done
+              echo "CLI tools installed via busybox symlinks"
+          volumeMounts:
+            - name: cli-tools
+              mountPath: /tools
       containers:
         - name: openclaw
           image: {{ .Values.openclaw.image.repository }}:{{ .Values.openclaw.image.tag }}
@@ -147,12 +229,18 @@ spec:
               value: "/home/node/.openclaw/openclaw.json"
             - name: NODE_ENV
               value: "production"
+            # Erweitere PATH um /usr/local/tools fuer nano/vi
+            - name: PATH
+              value: "/usr/local/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
             {{- include "quarantine-wrapper.proxyEnv" . | nindent 12 }}
             {{- end }}
           volumeMounts:
             - name: openclaw-data
               mountPath: /home/node/.openclaw
+            - name: cli-tools
+              mountPath: /usr/local/tools
+              readOnly: true
             {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
             {{- include "quarantine-wrapper.caTrustVolumeMounts" . | nindent 12 }}
             {{- end }}
@@ -179,6 +267,8 @@ spec:
         - name: openclaw-config
           configMap:
             name: openclaw-config
+        - name: cli-tools
+          emptyDir: {}
         {{- if and .Values.mitmproxy.enabled .Values.ca.enabled }}
         {{- include "quarantine-wrapper.caTrustVolumes" . | nindent 8 }}
         {{- end }}
