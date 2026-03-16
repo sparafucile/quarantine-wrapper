@@ -1,14 +1,15 @@
 apiVersion: v2
 name: quarantine-wrapper
-description: Generischer Quarantine-Wrapper - isolierte Netzwerk-Umgebung fuer beliebige ArgoCD-Apps
+description: Generischer Quarantine-Wrapper v2 - app-agnostische isolierte Netzwerk-Umgebung mit Kyverno-basierter transparenter Proxy/CA-Injection
 type: application
-version: 1.6.1
-appVersion: "1.6.1"
+version: 2.0.0
+appVersion: "2.0.0"
 keywords:
   - quarantine
   - network-isolation
   - security
   - proxy
   - mitmproxy
+  - kyverno
 maintainers:
   - name: Andreas Braunmiller
