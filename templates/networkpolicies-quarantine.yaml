@@ -131,7 +131,7 @@ spec:
               kubernetes.io/metadata.name: argocd
 ---
 # LAN + kube-system + gateway-system Ingress
-# Ports werden dynamisch aus services[] generiert
+# Ports konfigurierbar via ingressPorts[] (v2: Apps bringen eigene Services mit)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -153,12 +153,14 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: gateway-system
+      {{- if or .Values.ingressPorts .Values.helloWorld.enabled }}
       ports:
-        {{- range .Values.services }}
+        {{- range .Values.ingressPorts }}
         - protocol: TCP
-          port: {{ .port }}
+          port: {{ . }}
         {{- end }}
         {{- if .Values.helloWorld.enabled }}
         - protocol: TCP
           port: {{ .Values.helloWorld.port }}
         {{- end }}
+      {{- end }}
