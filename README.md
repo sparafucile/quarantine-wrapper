@@ -22,6 +22,7 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 | [docs/VALUES.md](docs/VALUES.md) | Vollstaendige Values-Referenz (alle Parameter mit Defaults und Beschreibung) |
 | [docs/NETWORK-POLICIES.md](docs/NETWORK-POLICIES.md) | NetworkPolicy-Konzept (App-NS, Gateway-NS, CiliumNetworkPolicies) |
 | [docs/LESSONS.md](docs/LESSONS.md) | Lessons Learned nach Version (v1.4.x – v1.6.1) |
+| [BACKLOG.md](BACKLOG.md) | v2-Roadmap (Kyverno-Injection, app-agnostisch) + archiviertes App-Wissen |
 
 ## Architektur
 
@@ -145,8 +146,7 @@ authentik:
 | `squid.yaml` | ConfigMap, Deployment, Service |
 | `mitmproxy.yaml` | PVC, Deployment, Service |
 | `openbao-setup.yaml` | SA, ConfigMap (Python-Script), Sync-Hook Job (CA + mitmweb-PW auto-gen, Wave -5) |
-| `external-secret.yaml` | ExternalSecret(s) (CA, mitmweb-PW + opt. App-Secrets, Authentik-Token) |
-| `openclaw.yaml` | PVC, ConfigMap (openclaw.json + merge-config.py), Deployment (4 initContainers: merge-config, trust-ca, install-tools, install-nano), Service |
+| `external-secret.yaml` | ExternalSecret(s) (CA, mitmweb-PW, Authentik-Token) |
 | `mitmproxy-ca-distribution.yaml` | SA, RBAC, Script-CM, CronJob, PostSync-Job |
 | `httproutes.yaml` | HTTPRoutes (dynamisch aus services[]) |
 | `reference-grants.yaml` | ReferenceGrants (Gateway + opt. Authentik) |
@@ -173,3 +173,7 @@ Der `openbao-ca-setup` Job (Wave -5) ist ein ArgoCD Sync-Hook (`argocd.argoproj.
 - Authentik (falls `authentik.enabled`)
 - Longhorn (fuer mitmproxy PVC)
 - ExternalDNS (fuer HTTPRoute-Annotations)
+
+## Roadmap: v2 (app-agnostisch mit Kyverno)
+
+Der Wrapper wird zu einem rein infrastrukturellen Chart umgebaut. Apps werden als eigenstaendige Helm Charts in den vom Wrapper kontrollierten Namespace deployed. Kyverno injiziert automatisch Proxy-Env-Vars, CA-Trust und Volumes — die App braucht keine Quarantine-Kenntnis. Dasselbe Chart funktioniert in einem normalen Namespace ohne Aenderung. Details im [BACKLOG.md](BACKLOG.md).
