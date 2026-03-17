@@ -284,8 +284,12 @@ metadata:
     {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
 spec:
   podSelector:
-    matchLabels:
-      app.kubernetes.io/component: authentik-setup
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - authentik-setup
+          - authentik-cleanup
   policyTypes:
     - Egress
   egress:
@@ -361,3 +365,4 @@ spec:
   egress:
     {{- toYaml .Values.egress.extraEgressRules | nindent 4 }}
 {{- end }}
+
