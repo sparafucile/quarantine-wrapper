@@ -144,6 +144,17 @@ authentik:
   apiTokenSecret: ""           # K8s Secret mit Authentik API-Token (Default: authentik-api-token)
   openbaoPath: ""              # Default: infra/authentik/api-token (shared)
   outpostPk: 1                 # Primary Key des Embedded Outpost
+  # v2: Externe Apps die im Quarantine-Namespace deployt werden
+  # Der Wrapper erstellt Authentik Proxy Provider + Application fuer jede App.
+  # Apps deployen ihre eigenen Services/HTTPRoutes — hier wird nur die
+  # Authentik-Registrierung konfiguriert.
+  externalApps: []
+    # Beispiel:
+    # - name: openclaw                               # Provider-Name (wird zu <appName>-<name>)
+    #   hostname: p-openclaw-k8s.sparafucile.net      # Externer Hostname
+    #   service: openclaw                             # K8s Service-Name im App-Namespace
+    #   port: 18789                                   # Service-Port
+    #   skipPathRegex: ""                             # API-Bypass Regex (optional)
 
 # ============================================================
 # CILIUM
