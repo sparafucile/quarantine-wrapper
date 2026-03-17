@@ -1,0 +1,162 @@
+{{- if .Values.authentik.enabled }}
+# ============================================================================
+# Authentik-Cleanup PreDelete-Hook
+# ============================================================================
+# Entfernt beim Loeschen der Wrapper-App automatisch:
+# - Alle Authentik Proxy Provider die fuer Services in diesem Namespace
+#   erstellt wurden (dynamisch entdeckt + mitmweb)
+# - Zugehoerige Applications
+# - Provider-Referenzen aus dem Embedded Outpost
+# ============================================================================
+
+# --- ConfigMap mit dem Cleanup-Script ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-cleanup-script
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  annotations:
+    argocd.argoproj.io/hook: PreDelete
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+data:
+  cleanup-authentik.py: |
+    #!/usr/bin/env python3
+    """Cleanup: Entfernt Authentik Provider + Applications beim Loeschen."""
+    import urllib.request, json, ssl, os, sys
+
+    sys.stdout.reconfigure(line_buffering=True)
+
+    AUTHENTIK_URL = os.environ.get("AUTHENTIK_URL", "http://authentik-server.authentik.svc.p-k8s-cluster.local")
+    API_TOKEN = os.environ["AUTHENTIK_TOKEN"]
+    APP_NAME = "{{ .Values.appName }}"
+    APP_NAMESPACE = "{{ include "quarantine-wrapper.appNamespace" . }}"
+    K8S_CLUSTER_DOMAIN = "p-k8s-cluster.local"
+    OUTPOST_PK = int(os.environ.get("OUTPOST_PK", "{{ .Values.authentik.outpostPk }}"))
+
+    print(f"Cleanup for: {APP_NAME} (namespace: {APP_NAMESPACE})")
+
+    headers = {
+        "Authorization": f"Bearer {API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    def api_call(method, path, data=None):
+        url = f"{AUTHENTIK_URL}{path}"
+        body = json.dumps(data).encode() if data else None
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+        try:
+            resp = urllib.request.urlopen(req, timeout=15, context=ctx)
+            resp_body = resp.read()
+            return json.loads(resp_body) if resp_body else {}
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            err_body = e.read().decode()
+            print(f"  ERROR {e.code}: {err_body[:200]}")
+            return None
+
+    # 1. Alle Provider finden die mit unserem APP_NAME-Prefix beginnen
+    print(f"\n=== Finding providers with prefix: {APP_NAME}- ===")
+    provider_pks_to_remove = []
+    result = api_call("GET", f"/api/v3/providers/proxy/?search={APP_NAME}")
+    if result:
+        for p in result.get("results", []):
+            if p["name"].startswith(f"{APP_NAME}-"):
+                print(f"  Found: {p['name']} (pk={p['pk']})")
+                provider_pks_to_remove.append(p["pk"])
+
+    # 2. Applications loeschen
+    print(f"\n=== Deleting applications ===")
+    for pk in provider_pks_to_remove:
+        # Provider-Name als Slug verwenden
+        provider = api_call("GET", f"/api/v3/providers/proxy/{pk}/")
+        if provider:
+            slug = provider["name"]
+            print(f"  Deleting application: {slug}")
+            api_call("DELETE", f"/api/v3/core/applications/{slug}/")
+
+    # 3. Provider loeschen
+    print(f"\n=== Deleting providers ===")
+    for pk in provider_pks_to_remove:
+        print(f"  Deleting provider pk={pk}")
+        api_call("DELETE", f"/api/v3/providers/proxy/{pk}/")
+
+    # 4. Outpost aktualisieren (Provider entfernen)
+    if provider_pks_to_remove:
+        print(f"\n=== Updating Embedded Outpost ===")
+        outpost = api_call("GET", f"/api/v3/outposts/instances/{OUTPOST_PK}/")
+        if not outpost:
+            # Fallback: suche nach Embedded Outpost
+            all_outposts = api_call("GET", "/api/v3/outposts/instances/?ordering=name")
+            if all_outposts:
+                for o in all_outposts.get("results", []):
+                    if "embedded" in o.get("name", "").lower() or o.get("type") == "proxy":
+                        outpost = o
+                        break
+        if outpost:
+            current_providers = outpost.get("providers", [])
+            new_providers = [pk for pk in current_providers if pk not in provider_pks_to_remove]
+            api_call("PATCH", f"/api/v3/outposts/instances/{outpost['pk']}/", {
+                "providers": new_providers,
+            })
+            print(f"  Outpost updated: {len(current_providers)} -> {len(new_providers)} providers")
+        else:
+            print("  WARNING: No outpost found")
+
+    print(f"\n=== Cleanup complete: removed {len(provider_pks_to_remove)} providers ===")
+---
+# --- PreDelete-Job ---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: authentik-cleanup
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  annotations:
+    argocd.argoproj.io/hook: PreDelete
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    app.kubernetes.io/component: authentik-cleanup
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 60
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: authentik-cleanup
+    spec:
+      serviceAccountName: authentik-setup
+      restartPolicy: OnFailure
+      containers:
+        - name: cleanup
+          image: {{ .Values.ca.distributorImage.repository }}:{{ .Values.ca.distributorImage.tag }}
+          command: ["python3", "/scripts/cleanup-authentik.py"]
+          env:
+            - name: AUTHENTIK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.authentik.apiTokenSecret | default "authentik-api-token" }}
+                  key: token
+            - name: OUTPOST_PK
+              value: "{{ .Values.authentik.outpostPk }}"
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
+      volumes:
+        - name: script
+          configMap:
+            name: authentik-cleanup-script
+{{- end }}
