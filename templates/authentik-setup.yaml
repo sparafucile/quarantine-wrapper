@@ -51,18 +51,12 @@ data:
         print("Aborting - cannot reach Authentik")
         sys.exit(1)
 
-    # Service-Definitionen (aus Helm Values generiert)
+    APP_NAMESPACE = "{{ include "quarantine-wrapper.appNamespace" . }}"
+    APP_NAME = "{{ .Values.appName }}"
+    K8S_CLUSTER_DOMAIN = "p-k8s-cluster.local"
+
+    # --- Statische Services (Wrapper-eigene) ---
     SERVICES = [
-    {{- range .Values.services }}
-    {{- if and .authentik .authentik.enabled }}
-        {
-            "name": "{{ $.Values.appName }}-{{ .name }}",
-            "external_host": "https://{{ .hostname }}",
-            "internal_host": "http://{{ .name }}.{{ include "quarantine-wrapper.appNamespace" $ }}.svc.p-k8s-cluster.local:{{ .port }}",
-            "skip_path_regex": {{ if .authentik.skipPathRegex }}"{{ .authentik.skipPathRegex }}"{{ else }}""{{ end }},
-        },
-    {{- end }}
-    {{- end }}
     {{- if and .Values.mitmproxy.enabled .Values.mitmproxy.authentik.enabled }}
         {
             "name": "{{ .Values.appName }}-mitmweb",
@@ -72,6 +66,61 @@ data:
         },
     {{- end }}
     ]
+
+    # --- Dynamische Service-Discovery aus dem App-Namespace ---
+    # Apps die einen Authentik Proxy Provider benoetigen, setzen:
+    #   Label: quarantine.sparafucile.net/authentik: "true"
+    #   Annotation: quarantine.sparafucile.net/external-host: "https://p-<app>-k8s.sparafucile.net"
+    #   Annotation: quarantine.sparafucile.net/skip-path-regex: "" (optional)
+    print("\n=== Discovering services in namespace: " + APP_NAMESPACE + " ===")
+
+    k8s_token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    k8s_ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+
+    try:
+        with open(k8s_token_path) as f:
+            k8s_token = f.read().strip()
+
+        k8s_ctx = ssl.create_default_context(cafile=k8s_ca_path)
+        k8s_headers = {
+            "Authorization": f"Bearer {k8s_token}",
+            "Accept": "application/json",
+        }
+        svc_url = f"https://kubernetes.default.svc/api/v1/namespaces/{APP_NAMESPACE}/services?labelSelector=quarantine.sparafucile.net/authentik%3Dtrue"
+        req = urllib.request.Request(svc_url, headers=k8s_headers)
+        resp = urllib.request.urlopen(req, timeout=10, context=k8s_ctx)
+        svc_data = json.loads(resp.read())
+
+        for svc in svc_data.get("items", []):
+            svc_name = svc["metadata"]["name"]
+            annotations = svc["metadata"].get("annotations", {})
+            external_host = annotations.get("quarantine.sparafucile.net/external-host", "")
+            skip_regex = annotations.get("quarantine.sparafucile.net/skip-path-regex", "")
+
+            if not external_host:
+                print(f"  SKIP {svc_name}: missing external-host annotation")
+                continue
+
+            # Ersten Port verwenden
+            ports = svc.get("spec", {}).get("ports", [])
+            port = ports[0]["port"] if ports else 80
+
+            provider_name = f"{APP_NAME}-{svc_name}"
+            internal_host = f"http://{svc_name}.{APP_NAMESPACE}.svc.{K8S_CLUSTER_DOMAIN}:{port}"
+
+            print(f"  Discovered: {provider_name} -> {external_host} (internal: {internal_host})")
+            SERVICES.append({
+                "name": provider_name,
+                "external_host": external_host,
+                "internal_host": internal_host,
+                "skip_path_regex": skip_regex,
+            })
+
+    except FileNotFoundError:
+        print("  WARNING: No K8s service account token found — running outside cluster? Skipping discovery.")
+    except Exception as e:
+        print(f"  WARNING: Service discovery failed: {e}")
+        print("  Continuing with static services only.")
 
     headers = {
         "Authorization": f"Bearer {API_TOKEN}",
@@ -229,6 +278,7 @@ spec:
       labels:
         app.kubernetes.io/component: authentik-setup
     spec:
+      serviceAccountName: authentik-setup
       restartPolicy: OnFailure
       containers:
         - name: setup
