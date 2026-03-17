@@ -36,3 +36,50 @@ subjects:
     name: default
     namespace: {{ include "quarantine-wrapper.appNamespace" . }}
 {{- end }}
+{{- if .Values.authentik.enabled }}
+---
+# ============================================================================
+# RBAC: Authentik-Setup Service-Discovery
+# ============================================================================
+# Der authentik-setup Job im GW-Namespace muss Services im App-Namespace
+# lesen koennen, um dynamisch Proxy Provider zu erstellen.
+# ============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: authentik-setup
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    app.kubernetes.io/component: authentik-setup
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: authentik-service-discovery
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+    app.kubernetes.io/component: authentik-setup
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: authentik-service-discovery-binding
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+    app.kubernetes.io/component: authentik-setup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: authentik-service-discovery
+subjects:
+  - kind: ServiceAccount
+    name: authentik-setup
+    namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+{{- end }}
