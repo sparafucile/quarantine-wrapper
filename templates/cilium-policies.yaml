@@ -192,3 +192,39 @@ spec:
     - toEntities:
         - kube-apiserver
 {{- end }}
+{{- if .Values.authentik.enabled }}
+---
+# --- Gateway-Namespace: Authentik-Setup K8s API-Server Zugriff ---
+# Service-Discovery braucht K8s API Zugriff. Standard-NetworkPolicy ipBlock
+# reicht nicht, da Cilium K8s-API-Traffic auf Master-Node-IPs DNATet.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-authentik-setup-apiserver
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: authentik-setup
+  egress:
+    - toEntities:
+        - kube-apiserver
+---
+# --- Gateway-Namespace: Authentik-Cleanup K8s API-Server Zugriff ---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-authentik-cleanup-apiserver
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: authentik-cleanup
+  egress:
+    - toEntities:
+        - kube-apiserver
+{{- end }}
