@@ -102,6 +102,11 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: gateway-system
+        {{- if .Values.authentik.enabled }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.authentik.namespace }}
+        {{- end }}
       ports:
         - protocol: TCP
           port: {{ .Values.mitmproxy.webPort }}
