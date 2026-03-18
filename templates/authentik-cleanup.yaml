@@ -142,6 +142,7 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.authentik.apiTokenSecret | default "authentik-api-token" }}
                   key: token
+                  optional: true
             - name: OUTPOST_PK
               value: "{{ .Values.authentik.outpostPk }}"
           volumeMounts:

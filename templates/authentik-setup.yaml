@@ -28,7 +28,44 @@ data:
     sys.stdout.reconfigure(line_buffering=True)
 
     AUTHENTIK_URL = os.environ.get("AUTHENTIK_URL", "http://authentik-server.authentik.svc.p-k8s-cluster.local")
-    API_TOKEN = os.environ["AUTHENTIK_TOKEN"]
+
+    # Token might be empty if ExternalSecret hasn't synced the K8s Secret yet.
+    # In that case, poll the K8s API until the Secret appears.
+    import time
+    API_TOKEN = os.environ.get("AUTHENTIK_TOKEN", "")
+    if not API_TOKEN:
+        print("AUTHENTIK_TOKEN not set (ExternalSecret may still be syncing)")
+        print("Polling K8s API for Secret...")
+        secret_name = "{{ .Values.authentik.apiTokenSecret | default "authentik-api-token" }}"
+        ns = "{{ include "quarantine-wrapper.gwNamespace" . }}"
+        k8s_token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        k8s_ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        try:
+            with open(k8s_token_path) as f:
+                k8s_token = f.read().strip()
+            k8s_ctx = ssl.create_default_context(cafile=k8s_ca_path)
+            for attempt in range(12):
+                try:
+                    req = urllib.request.Request(
+                        f"https://kubernetes.default.svc/api/v1/namespaces/{ns}/secrets/{secret_name}",
+                        headers={"Authorization": f"Bearer {k8s_token}", "Accept": "application/json"},
+                    )
+                    resp = urllib.request.urlopen(req, timeout=5, context=k8s_ctx)
+                    import base64
+                    data = json.loads(resp.read())
+                    API_TOKEN = base64.b64decode(data["data"]["token"]).decode()
+                    print(f"  Token found via K8s API after {(attempt+1)*5}s")
+                    break
+                except Exception:
+                    time.sleep(5)
+                    if attempt < 11:
+                        print(f"  Waiting... ({(attempt+1)*5}s)")
+            if not API_TOKEN:
+                print("ERROR: Secret not available after 60s, aborting")
+                sys.exit(1)
+        except FileNotFoundError:
+            print("ERROR: No K8s SA token — cannot poll for Secret")
+            sys.exit(1)
     OUTPOST_PK = int(os.environ.get("OUTPOST_PK", "{{ .Values.authentik.outpostPk }}"))
     HTTP_TIMEOUT = 15  # seconds
 
@@ -290,6 +327,7 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.authentik.apiTokenSecret | default "authentik-api-token" }}
                   key: token
+                  optional: true
             - name: OUTPOST_PK
               value: "{{ .Values.authentik.outpostPk }}"
           volumeMounts:
