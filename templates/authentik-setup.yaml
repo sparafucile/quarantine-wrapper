@@ -256,8 +256,24 @@ data:
             api_call("PATCH", f"/api/v3/core/applications/{slug}/", app_data)
         else:
             print(f"  Creating application...")
-            api_call("POST", "/api/v3/core/applications/", app_data)
-            print(f"  Created application: {slug}")
+            try:
+                api_call("POST", "/api/v3/core/applications/", app_data)
+                print(f"  Created application: {slug}")
+            except urllib.error.HTTPError as e:
+                if e.code == 400:
+                    # Provider already linked to another application (different slug from earlier deployment).
+                    # Find the existing application by searching all apps for this provider PK.
+                    print(f"  Provider already linked — searching for existing application...")
+                    all_apps = api_call("GET", f"/api/v3/core/applications/?provider={provider_pk}")
+                    for existing in (all_apps or {}).get("results", []):
+                        old_slug = existing["slug"]
+                        print(f"  Found existing app: {old_slug} (pk={existing.get('pk','')}), updating...")
+                        api_call("PATCH", f"/api/v3/core/applications/{old_slug}/", app_data)
+                        break
+                    else:
+                        print(f"  WARNING: Could not find linked application, skipping")
+                else:
+                    raise
 
     # 3. Embedded Outpost aktualisieren
     if created_provider_pks:
