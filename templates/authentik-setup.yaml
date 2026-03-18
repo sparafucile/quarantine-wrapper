@@ -96,7 +96,7 @@ data:
     SERVICES = [
     {{- if and .Values.mitmproxy.enabled .Values.mitmproxy.authentik.enabled }}
         {
-            "name": "{{ .Values.appName }}-mitmweb",
+            "name": "{{ include "quarantine-wrapper.gwNamespace" . }}-mitmweb",
             "external_host": "https://{{ include "quarantine-wrapper.mitmwebHostname" . }}",
             "internal_host": "http://mitmproxy.{{ include "quarantine-wrapper.gwNamespace" . }}.svc.p-k8s-cluster.local:{{ .Values.mitmproxy.webPort }}",
             "skip_path_regex": "",
@@ -142,7 +142,7 @@ data:
             ports = svc.get("spec", {}).get("ports", [])
             port = ports[0]["port"] if ports else 80
 
-            provider_name = f"{APP_NAME}-{svc_name}"
+            provider_name = f"{APP_NAMESPACE}-{svc_name}"
             internal_host = f"http://{svc_name}.{APP_NAMESPACE}.svc.{K8S_CLUSTER_DOMAIN}:{port}"
 
             print(f"  Discovered: {provider_name} -> {external_host} (internal: {internal_host})")
