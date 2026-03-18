@@ -58,23 +58,13 @@ spec:
   hostnames:
     - {{ include "quarantine-wrapper.mitmwebHostname" . }}
   rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /
-      backendRefs:
+    - backendRefs:
         {{- if and .Values.authentik.enabled .Values.mitmproxy.authentik.enabled }}
-        - group: ""
-          kind: Service
-          name: authentik-server
+        - name: authentik-server
           namespace: {{ .Values.authentik.namespace }}
           port: 80
-          weight: 1
         {{- else }}
-        - group: ""
-          kind: Service
-          name: mitmproxy
+        - name: mitmproxy
           port: {{ .Values.mitmproxy.webPort }}
-          weight: 1
         {{- end }}
 {{- end }}
