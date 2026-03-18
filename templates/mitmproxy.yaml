@@ -75,6 +75,12 @@ spec:
             - "{{ .Values.mitmproxy.proxyPort }}"
             - "--set"
             - "block_global=false"
+            # Stream statt Buffern: verhindert Timeout bei Long-Poll (z.B. Matrix /sync)
+            - "--set"
+            - "stream_large_bodies=1"
+            # Lazy: Upstream-Verbindung erst bei Bedarf oeffnen
+            - "--set"
+            - "connection_strategy=lazy"
             {{- if .Values.ca.enabled }}
             - "--set"
             - "confdir=/home/mitmproxy/.mitmproxy"
