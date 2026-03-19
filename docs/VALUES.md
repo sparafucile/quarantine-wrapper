@@ -1,12 +1,13 @@
 # Values-Referenz
 
-Vollstaendige Parameter-Dokumentation fuer den quarantine-wrapper Helm Chart.
+Vollstaendige Parameter-Dokumentation fuer den quarantine-wrapper Helm Chart (`chart/`).
 
 ## Pflicht
 
-| Parameter | Beschreibung |
-|-----------|-------------|
-| `appName` | App-Identifier, steuert alle dynamischen Namen |
+| Parameter | Default | Beschreibung |
+|-----------|---------|-------------|
+| `appName` | `"example"` | App-Identifier, steuert alle dynamischen Namen. MUSS in ArgoCD ueberschrieben werden! |
+| `clusterDNS` | `"p-k8s-cluster.local"` | Cluster-DNS-Domain (kubeadm --service-dns-domain) |
 
 ## Services (Ingress)
 
@@ -31,7 +32,7 @@ Fuer jeden Service wird automatisch generiert: HTTPRoute, NetworkPolicy (Ingress
 | `authentik.outpostPk` | `1` | Fallback Outpost PK (Auto-Discovery aktiv) |
 | `authentik.openbaoPath` | auto | Default: `infra/authentik/api-token` (shared) |
 
-Wenn `authentik.enabled`: PostSync-Job erstellt automatisch Proxy-Provider, Applications und updated den Embedded Outpost. Flows (authorization + invalidation) werden auto-discovered via `/api/v3/flows/instances/`. Der Embedded Outpost wird ueber `/api/v3/outposts/instances/` gesucht (`type=proxy`).
+Wenn `authentik.enabled`: PostSync-Job erstellt automatisch Proxy-Provider, Applications und updated den Embedded Outpost. Service-Discovery scannt **beide** Namespaces (App + GW) nach Services mit Label `quarantine.sparafucile.net/authentik: "true"`. Flows (authorization + invalidation) werden auto-discovered via `/api/v3/flows/instances/`.
 
 ## Egress / Squid-Whitelist
 
@@ -60,7 +61,7 @@ Der Squid-Pod restartet automatisch bei Aenderungen an der Whitelist (Checksum-A
 | `mitmproxy.enabled` | `true` | mitmproxy TLS-Interception + upstream-Modus |
 | `mitmproxy.proxyPort` | `8080` | mitmproxy Proxy Port |
 | `mitmproxy.webPort` | `8081` | mitmweb UI Port |
-| `mitmproxy.hostname` | auto | Default: `p-<appName>-mitmweb-k8s.sparafucile.net` |
+| `mitmproxy.hostname` | auto | Default: `p-<appName>-mitmweb-k8s.<clusterDomain>` |
 | `mitmproxy.openbaoPath` | auto | Default: `apps/quarantine/<appName>/mitmweb-password` |
 | `mitmproxy.storageClass` | `longhorn` | PVC StorageClass |
 
@@ -91,13 +92,33 @@ Der `proxyEnv` Helm-Helper setzt folgende Umgebungsvariablen fuer alle Quarantin
 | `ca.openbaoPath` | auto | Default: `apps/quarantine/<appName>/mitmproxy-ca` |
 | `ca.secretName` | `mitmproxy-ca` | K8s Secret Name |
 
+## ControlCenter (Web-UI)
+
+| Parameter | Default | Beschreibung |
+|-----------|---------|-------------|
+| `controlcenter.enabled` | `false` | ControlCenter aktivieren |
+| `controlcenter.image.repository` | Harbor Registry | CC Container Image |
+| `controlcenter.image.tag` | `"1.0.14"` | CC Image Tag (von Jenkins gesetzt) |
+| `controlcenter.port` | `8080` | CC HTTP Port |
+| `controlcenter.hostname` | auto | Default: `p-<appName>-quarantine-cc-k8s.<domain>` |
+
+Das CC bekommt automatisch: mitmproxy-CA (initContainer), `PROXY_URL` (expliziter Proxy-Zugang fuer Health-Check), `MITMWEB_URL` (fuer Deep-Links), `SSL_CERT_FILE`/`REQUESTS_CA_BUNDLE` (CA-Trust), sowie `BUILD_NUMBER`/`BUILD_DATE`/`BUILD_COMMIT` aus der `build:` Section.
+
+## Build (Jenkins CI/CD)
+
+| Parameter | Default | Beschreibung |
+|-----------|---------|-------------|
+| `build.number` | `"dev"` | Jenkins Build-Nummer (von Stage 2 gesetzt) |
+| `build.date` | `""` | Build-Datum (von Stage 2 gesetzt) |
+| `build.commit` | `""` | Git Short-Hash (von Stage 2 gesetzt) |
+
 ## Hello-World Debug-Pod
 
 | Parameter | Default | Beschreibung |
 |-----------|---------|-------------|
 | `helloWorld.enabled` | `false` | Debug-Pod aktivieren |
 | `helloWorld.port` | `8080` | HTTP Port |
-| `helloWorld.hostname` | auto | Default: `p-<appName>-hello-k8s.sparafucile.net` |
+| `helloWorld.hostname` | auto | Default: `p-<appName>-hello-k8s.<domain>` (via Helper) |
 
 ## Netzwerk
 

@@ -109,3 +109,46 @@ Die `allow-egress-to-proxy` NetworkPolicy im Quarantine-Namespace muss den **ers
 **Problem:** Wenn ein Pod durch Recreate-Strategie auf einen anderen Node wandert, kann Cilium's Envoy den alten Endpoint gecacht halten. Ergebnis: "upstream connect error / Connection timed out" (503) obwohl der Pod Ready ist und kubelet Health-Checks bestehen.
 
 **Fix:** Pod loeschen (erneuter Restart), damit Cilium den Endpoint frisch programmiert. Tritt besonders nach erstmaliger Umstellung auf Recreate-Strategie auf.
+
+---
+
+## Session 200 (ControlCenter v1.0.14)
+
+### mitmweb Auth: Token statt Basic Auth
+
+**Problem:** CC Health-Check und Traffic-Tab zeigten 403 bei mitmweb API-Calls. `httpx.BasicAuth(username="", password=...)` wurde abgelehnt.
+
+**Fix:** `?token=PASSWORD` als Query-Parameter (mitmweb-Standard seit CVE-2025-23217). Basic Auth funktioniert NICHT fuer die REST API.
+
+### Duplizierte HTTPRoute ueberschreibt Authentik-Schutz
+
+**Problem:** `hello-world.yaml` enthielt eine HTTPRoute die IMMER auf `hello-world:8080` zeigte (keine Authentik-Bedingung). `httproutes.yaml` enthielt dieselbe Route MIT Authentik-Bedingung. SSA wendete die letzte an (alphabetisch: `h` vor `ht`), dadurch war hello-world oeffentlich zugaenglich.
+
+**Fix:** HTTPRoute nur noch in `httproutes.yaml` definieren. Bei SSA-Konflikten: Route loeschen, dann neu syncen (SSA-Field-Ownership). KEINE doppelten Ressourcen mit gleichem `metadata.name` in verschiedenen Templates!
+
+### Ingress-Policy auf Empfaenger-Seite pruefen
+
+**Problem:** CC konnte mitmproxy:8080 nicht erreichen (ConnectTimeout). CC-Egress war korrekt (CiliumNP + K8s-NP). Root Cause: Die **Ingress**-Policy auf mitmproxy erlaubte Port 8080 NUR vom App-Namespace, nicht vom GW-Namespace (wo der CC lebt). `default-deny-ingress` blockierte den intra-NS-Traffic.
+
+**Fix:** `allow-ingress-from-quarantine-mitmproxy` um CC-Pod als Ingress-Quelle erweitert. **Immer BEIDE Seiten pruefen: Egress (Sender) UND Ingress (Empfaenger).**
+
+### CC braucht eigene CA-Trust (kein Kyverno im GW-NS)
+
+**Problem:** CC im GW-Namespace hat keine Proxy-EnvVars und kein CA-Trust — Kyverno injiziert nur im App-Namespace.
+
+**Fix:** CC Deployment bekommt `trust-mitmproxy-ca` initContainer + `SSL_CERT_FILE`/`REQUESTS_CA_BUNDLE` Env-Vars + `PROXY_URL` fuer expliziten Proxy-Zugang im Health-Check.
+
+### Headlamp CRD-URLs verwenden Plural-Namen
+
+**Falsch:** `/c/main/customresources/cilium.io/v2/CiliumNetworkPolicy/{ns}/{name}` (404)
+**Richtig:** `/c/main/customresources/ciliumnetworkpolicies.cilium.io/{ns}/{name}`
+
+Headlamp verwendet `{crd-plural}.{api-group}` als URL-Segment fuer Custom Resources.
+
+### Chart-Pfad: immer `/chart` verwenden
+
+Alle k8s-apps Repos nutzen `chart/` als Helm-Chart-Verzeichnis. ArgoCD Source-Path MUSS `chart` sein (nicht `.`). Macht Jenkins Stage 0 (Helm Validate) und Stage 2 (Tag-Update) kompatibel mit den Defaults der Shared Library.
+
+### hardcoded DNS durch Values ersetzen
+
+`p-k8s-cluster.local` war in 6+ Templates hardcoded. Neuer Value `clusterDNS` (Default: `p-k8s-cluster.local`) in `_helpers.tpl`, `controlcenter.yaml`, `authentik-setup.yaml`, `authentik-cleanup.yaml`.
