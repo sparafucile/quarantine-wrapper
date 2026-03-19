@@ -6,7 +6,7 @@
 # ============================================================
 # PFLICHT: App-Name (steuert alle dynamischen Namen)
 # ============================================================
-appName: ""                    # z.B. "showcase" -> showcase-quarantine + showcase-quarantine-gw
+appName: "example"             # PFLICHT: In ArgoCD überschreiben! z.B. "showcase" -> showcase-quarantine + showcase-quarantine-gw
 
 # ============================================================
 # KYVERNO: Transparente Proxy/CA-Injection (v2)
