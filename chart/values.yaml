@@ -97,7 +97,7 @@ ca:
     tag: "3.12-slim"
   initImage:
     repository: alpine
-    tag: "3.21"
+    tag: "3.23"
 
 # ============================================================
 # HELLO-WORLD DEBUG-POD (standardmaessig AUS)
