@@ -94,7 +94,7 @@ ca:
   secretName: mitmproxy-ca     # Name des K8s Secret im gw-Namespace
   distributorImage:
     repository: python
-    tag: "3.12-slim"
+    tag: "3.14-slim"
   initImage:
     repository: alpine
     tag: "3.21"
