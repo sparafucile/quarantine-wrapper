@@ -172,9 +172,9 @@ rbac:
 # BUILD (Jenkins Pipeline)
 # ============================================================
 build:
-  number: "172"
-  commit: "23ac0d3"
-  date: "2026-03-19 10:42 UTC"
+  number: "175"
+  commit: "6d936df"
+  date: "2026-03-19 10:48 UTC"
 
 # ============================================================
 # CONTROLCENTER
@@ -183,7 +183,7 @@ controlcenter:
   enabled: false
   image:
     repository: p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter
-    tag: "1.0.12@sha256:ffbe761fecbd28a2a9dc9b609287a2326176f096502f23f7a1964ff182623a04"
+    tag: "1.0.13@sha256:7daafeebf258532f4b1991f833c559d916626a5c7f67f3b58b17f808fe3c35d5"
   port: 8080
   hostname: ""              # Default: p-<appName>-quarantine-cc-k8s.<domain>
   resources:
