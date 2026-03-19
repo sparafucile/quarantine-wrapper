@@ -1,4 +1,4 @@
-"""Configuration from environment variables."""
+"""Configuration from environment variables (v1.0.10)."""
 import os
 
 # Namespace detection
