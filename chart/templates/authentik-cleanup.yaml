@@ -28,11 +28,11 @@ data:
 
     sys.stdout.reconfigure(line_buffering=True)
 
-    AUTHENTIK_URL = os.environ.get("AUTHENTIK_URL", "http://authentik-server.authentik.svc.p-k8s-cluster.local")
+    AUTHENTIK_URL = os.environ.get("AUTHENTIK_URL", "http://authentik-server.authentik.svc.{{ .Values.clusterDNS }}")
     API_TOKEN = os.environ["AUTHENTIK_TOKEN"]
     APP_NAME = "{{ .Values.appName }}"
     APP_NAMESPACE = "{{ include "quarantine-wrapper.appNamespace" . }}"
-    K8S_CLUSTER_DOMAIN = "p-k8s-cluster.local"
+    K8S_CLUSTER_DOMAIN = "{{ .Values.clusterDNS }}"
     OUTPOST_PK = int(os.environ.get("OUTPOST_PK", "{{ .Values.authentik.outpostPk }}"))
 
     print(f"Cleanup for: {APP_NAME} (namespace: {APP_NAMESPACE})")

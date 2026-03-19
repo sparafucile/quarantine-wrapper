@@ -218,7 +218,7 @@ spec:
         - name: MITMWEB_URL
           value: {{ printf "https://%s" (include "quarantine-wrapper.mitmwebHostname" .) | quote }}
         - name: PROXY_URL
-          value: {{ printf "http://mitmproxy.%s.svc.p-k8s-cluster.local:%d" (include "quarantine-wrapper.gwNamespace" .) (.Values.mitmproxy.proxyPort | int) | quote }}
+          value: {{ printf "http://mitmproxy.%s.svc.%s:%d" (include "quarantine-wrapper.gwNamespace" .) .Values.clusterDNS (.Values.mitmproxy.proxyPort | int) | quote }}
         {{- end }}
         {{- if .Values.ca.enabled }}
         - name: SSL_CERT_FILE

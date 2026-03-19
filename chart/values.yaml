@@ -7,6 +7,7 @@
 # PFLICHT: App-Name (steuert alle dynamischen Namen)
 # ============================================================
 appName: "example"             # PFLICHT: In ArgoCD überschreiben! z.B. "showcase" -> showcase-quarantine + showcase-quarantine-gw
+clusterDNS: "p-k8s-cluster.local"  # Cluster-DNS-Domain (kubeadm --service-dns-domain)
 
 # ============================================================
 # KYVERNO: Transparente Proxy/CA-Injection (v2)

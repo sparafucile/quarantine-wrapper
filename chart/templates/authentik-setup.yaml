@@ -27,7 +27,7 @@ data:
     # Unbuffered output
     sys.stdout.reconfigure(line_buffering=True)
 
-    AUTHENTIK_URL = os.environ.get("AUTHENTIK_URL", "http://authentik-server.authentik.svc.p-k8s-cluster.local")
+    AUTHENTIK_URL = os.environ.get("AUTHENTIK_URL", "http://authentik-server.authentik.svc.{{ .Values.clusterDNS }}")
 
     # Token might be empty if ExternalSecret hasn't synced the K8s Secret yet.
     # In that case, poll the K8s API until the Secret appears.
@@ -90,7 +90,7 @@ data:
 
     APP_NAMESPACE = "{{ include "quarantine-wrapper.appNamespace" . }}"
     APP_NAME = "{{ .Values.appName }}"
-    K8S_CLUSTER_DOMAIN = "p-k8s-cluster.local"
+    K8S_CLUSTER_DOMAIN = "{{ .Values.clusterDNS }}"
 
     # --- Statische Services (Wrapper-eigene) ---
     SERVICES = [
@@ -98,7 +98,7 @@ data:
         {
             "name": "{{ include "quarantine-wrapper.gwNamespace" . }}-mitmweb",
             "external_host": "https://{{ include "quarantine-wrapper.mitmwebHostname" . }}",
-            "internal_host": "http://mitmproxy.{{ include "quarantine-wrapper.gwNamespace" . }}.svc.p-k8s-cluster.local:{{ .Values.mitmproxy.webPort }}",
+            "internal_host": "http://mitmproxy.{{ include "quarantine-wrapper.gwNamespace" . }}.svc.{{ .Values.clusterDNS }}:{{ .Values.mitmproxy.webPort }}",
             "skip_path_regex": "",
         },
     {{- end }}

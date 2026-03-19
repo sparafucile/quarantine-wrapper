@@ -181,14 +181,14 @@ Per-App override via authentik.openbaoPath möglich.
 Squid-Service FQDN (für NetworkPolicies).
 */}}
 {{- define "quarantine-wrapper.squidFQDN" -}}
-{{- printf "squid.%s.svc.p-k8s-cluster.local" (include "quarantine-wrapper.gwNamespace" .) }}
+{{- printf "squid.%s.svc.%s" (include "quarantine-wrapper.gwNamespace" .) .Values.clusterDNS }}
 {{- end }}
 
 {{/*
 mitmproxy-Service FQDN.
 */}}
 {{- define "quarantine-wrapper.mitmproxyFQDN" -}}
-{{- printf "mitmproxy.%s.svc.p-k8s-cluster.local" (include "quarantine-wrapper.gwNamespace" .) }}
+{{- printf "mitmproxy.%s.svc.%s" (include "quarantine-wrapper.gwNamespace" .) .Values.clusterDNS }}
 {{- end }}
 
 {{/*
