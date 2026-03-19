@@ -91,6 +91,8 @@ CC hat eine eigene CNP `allow-controlcenter-egress` mit:
 - toCIDR: 0.0.0.0/0 Port 443 (Gitea, ArgoCD)
 - DNS zu kube-dns
 
+Zusaetzlich braucht mitmproxy eine **Ingress**-Policy die den CC-Pod auf Port 8080 akzeptiert (`allow-ingress-from-quarantine-mitmproxy` mit `podSelector: app: controlcenter`).
+
 ### CI/CD
 - Jenkinsfile: `appname: 'quarantine-controlcenter'`, `repoName: 'quarantine-wrapper'`, `dockerpath: 'controlcenter'`
 - Stage 2 schreibt `build.number`, `build.date`, `build.commit` in `chart/values.yaml`

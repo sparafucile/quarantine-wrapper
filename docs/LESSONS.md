@@ -122,7 +122,7 @@ Die `allow-egress-to-proxy` NetworkPolicy im Quarantine-Namespace muss den **ers
 
 ### Duplizierte HTTPRoute ueberschreibt Authentik-Schutz
 
-**Problem:** `hello-world.yaml` enthielt eine HTTPRoute die IMMER auf `hello-world:8080` zeigte (keine Authentik-Bedingung). `httproutes.yaml` enthielt dieselbe Route MIT Authentik-Bedingung. SSA wendete die letzte an (alphabetisch: `h` vor `ht`), dadurch war hello-world oeffentlich zugaenglich.
+**Problem:** `hello-world.yaml` enthielt eine HTTPRoute die IMMER auf `hello-world:8080` zeigte (keine Authentik-Bedingung). `httproutes.yaml` enthielt dieselbe Route MIT Authentik-Bedingung. Helm rendert Templates alphabetisch und gibt beide als separate YAML-Dokumente aus. Bei identischem `metadata.name` ueberschreibt SSA das Feld mit dem zuletzt angewendeten Wert — die `hello-world.yaml`-Version (`h` < `ht`) wurde zuerst gerendert, aber SSAs Field-Ownership-Tracking verhinderte das Update durch `httproutes.yaml`.
 
 **Fix:** HTTPRoute nur noch in `httproutes.yaml` definieren. Bei SSA-Konflikten: Route loeschen, dann neu syncen (SSA-Field-Ownership). KEINE doppelten Ressourcen mit gleichem `metadata.name` in verschiedenen Templates!
 

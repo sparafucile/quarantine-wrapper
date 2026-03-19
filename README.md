@@ -22,7 +22,7 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 |----------|--------|
 | [docs/VALUES.md](docs/VALUES.md) | Vollstaendige Values-Referenz (alle Parameter mit Defaults und Beschreibung) |
 | [docs/NETWORK-POLICIES.md](docs/NETWORK-POLICIES.md) | NetworkPolicy-Konzept (App-NS, Gateway-NS, CiliumNetworkPolicies) |
-| [docs/LESSONS.md](docs/LESSONS.md) | Lessons Learned nach Version (v1.4.x – v1.6.1) |
+| [docs/LESSONS.md](docs/LESSONS.md) | Lessons Learned (v1.4.x – v1.6.1, Session 200) |
 | [docs/CONTROLCENTER-BACKLOG.md](docs/CONTROLCENTER-BACKLOG.md) | ControlCenter-spezifisches Backlog |
 
 ## Architektur
@@ -79,7 +79,7 @@ helm lint chart --set appName=<appName>
 
 **Einmalige Cluster-Voraussetzungen** (bereits eingerichtet):
 - OpenBao K8s Auth Role `quarantine-setup` (SA `openbao-setup`, alle Namespaces)
-- OpenBao Policy `quarantine-setup-write` (write auf `secret/data/apps/quarantine/*`)
+- OpenBao Policy `quarantine-setup-write` (write auf `secret/data/apps/*`)
 - ClusterSecretStore `openbao` (ESO)
 - Shared Authentik Token unter `infra/authentik/api-token`
 
@@ -101,25 +101,31 @@ ignoreDifferences:
       - /spec/rules/0/backendRefs/0/weight
 ```
 
-## Minimalbeispiel (mit ControlCenter + Authentik)
+## Minimalbeispiel (v2 mit Kyverno + ControlCenter)
 
 ```yaml
 appName: myapp
-services:
-  - name: web
-    port: 8080
-    hostname: p-myapp-k8s.sparafucile.net
-    authentik:
-      enabled: true
+ingressPorts:
+  - 8080
 mitmproxy:
   enabled: true
   authentik:
     enabled: true
 authentik:
   enabled: true
+  externalApps:
+    - name: web
+      hostname: p-myapp-k8s.sparafucile.net
+      service: myapp-web
+      port: 8080
+      skipPathRegex: "^/api/"    # API-Endpunkte vom Authentik-Schutz ausnehmen (optional)
 controlcenter:
   enabled: true
+helloWorld:
+  enabled: true
 ```
+
+`skipPathRegex` auf Service- oder externalApps-Ebene erlaubt es, bestimmte URL-Pfade vom Authentik-Schutz auszunehmen (z.B. API-Endpunkte mit eigener Authentifizierung). Leerer String oder Weglassen = alles geschuetzt.
 
 ## CI/CD (ControlCenter Image)
 
