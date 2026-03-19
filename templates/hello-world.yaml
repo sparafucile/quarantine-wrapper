@@ -55,7 +55,11 @@ data:
           <dt>Pod-Name</dt>
           <dd><code>__POD_NAME__</code></dd>
           <dt>Internet-Zugang</dt>
+          {{- if .Values.mitmproxy.enabled }}
+          <dd>Nur via Proxy (<code>mitmproxy.{{ include "quarantine-wrapper.gwNamespace" . }}:{{ .Values.mitmproxy.proxyPort }}</code> &rarr; squid &rarr; Internet)</dd>
+          {{- else }}
           <dd>Nur via Proxy (<code>squid.{{ include "quarantine-wrapper.gwNamespace" . }}:{{ .Values.squid.port }}</code>)</dd>
+          {{- end }}
           <dt>Pod-Kommunikation</dt>
           <dd>Nur innerhalb <code>{{ include "quarantine-wrapper.appNamespace" . }}</code></dd>
         </dl>
