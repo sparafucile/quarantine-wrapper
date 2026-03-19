@@ -287,3 +287,14 @@ CA-Trust Volume-Mounts für den App-Container (Legacy-Helper).
   mountPath: /etc/ssl/custom
   readOnly: true
 {{- end }}
+
+{{/*
+Default-Hostname fuer ControlCenter.
+*/}}
+{{- define "quarantine-wrapper.ccHostname" -}}
+{{- if .Values.controlcenter.hostname }}
+{{- .Values.controlcenter.hostname }}
+{{- else }}
+{{- printf "p-%s-quarantine-cc-k8s.%s" .Values.appName .Values.gateway.domain }}
+{{- end }}
+{{- end }}
