@@ -446,12 +446,13 @@ function sortTraffic(col) {
 async function refreshPods() {
   const data = await api('/api/pods');
   const grid = document.getElementById('pods-grid');
+  const hlPod = (ns, name) => `${HEADLAMP}/c/main/pods/${ns}/${name}`;
   grid.innerHTML = [
     {ns: data.app_namespace, pods: data.app_pods},
     {ns: data.gw_namespace, pods: data.gw_pods}
   ].map(({ns, pods}) => `
     <div class="card">
-      <h2>${esc(ns)}</h2>
+      <h2><a href="${HEADLAMP}/c/main/namespaces/${esc(ns)}" target="_blank" class="policy-link">${esc(ns)}</a></h2>
       <table><thead><tr><th>Pod</th><th>Status</th><th>Restarts</th><th>Image</th></tr></thead><tbody>
       ${pods.map(p => {
         const badge = p.phase==='Running' ? 'badge-ok' :
@@ -459,7 +460,7 @@ async function refreshPods() {
                       p.phase==='Pending' ? 'badge-warn' : 'badge-error';
         const restarts = p.containers.reduce((s,c) => s+c.restarts, 0);
         const img = p.containers[0] ? p.containers[0].image.split('/').pop().split('@')[0] : '-';
-        return `<tr><td style="font-size:0.8rem">${esc(p.name)}</td><td><span class="badge ${badge}">${esc(p.phase)}</span></td><td>${restarts}</td><td style="font-size:0.75rem"><code>${esc(img)}</code></td></tr>`;
+        return `<tr><td style="font-size:0.8rem"><a href="${hlPod(ns, p.name)}" target="_blank" class="policy-link">${esc(p.name)}</a></td><td><span class="badge ${badge}">${esc(p.phase)}</span></td><td>${restarts}</td><td style="font-size:0.75rem"><code>${esc(img)}</code></td></tr>`;
       }).join('')}
       </tbody></table>
     </div>`
