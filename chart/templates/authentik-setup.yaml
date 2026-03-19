@@ -104,12 +104,13 @@ data:
     {{- end }}
     ]
 
-    # --- Dynamische Service-Discovery aus dem App-Namespace ---
-    # Apps die einen Authentik Proxy Provider benoetigen, setzen:
+    # --- Dynamische Service-Discovery aus App- UND GW-Namespace ---
+    # Services die einen Authentik Proxy Provider benoetigen, setzen:
     #   Label: quarantine.sparafucile.net/authentik: "true"
     #   Annotation: quarantine.sparafucile.net/external-host: "https://p-<app>-k8s.sparafucile.net"
     #   Annotation: quarantine.sparafucile.net/skip-path-regex: "" (optional)
-    print("\n=== Discovering services in namespace: " + APP_NAMESPACE + " ===")
+    GW_NAMESPACE = "{{ include "quarantine-wrapper.gwNamespace" . }}"
+    DISCOVERY_NAMESPACES = [APP_NAMESPACE, GW_NAMESPACE]
 
     k8s_token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
     k8s_ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
@@ -123,35 +124,43 @@ data:
             "Authorization": f"Bearer {k8s_token}",
             "Accept": "application/json",
         }
-        svc_url = f"https://kubernetes.default.svc/api/v1/namespaces/{APP_NAMESPACE}/services?labelSelector=quarantine.sparafucile.net/authentik%3Dtrue"
-        req = urllib.request.Request(svc_url, headers=k8s_headers)
-        resp = urllib.request.urlopen(req, timeout=10, context=k8s_ctx)
-        svc_data = json.loads(resp.read())
 
-        for svc in svc_data.get("items", []):
-            svc_name = svc["metadata"]["name"]
-            annotations = svc["metadata"].get("annotations", {})
-            external_host = annotations.get("quarantine.sparafucile.net/external-host", "")
-            skip_regex = annotations.get("quarantine.sparafucile.net/skip-path-regex", "")
+        for disco_ns in DISCOVERY_NAMESPACES:
+            print(f"\n=== Discovering services in namespace: {disco_ns} ===")
+            svc_url = f"https://kubernetes.default.svc/api/v1/namespaces/{disco_ns}/services?labelSelector=quarantine.sparafucile.net/authentik%3Dtrue"
+            req = urllib.request.Request(svc_url, headers=k8s_headers)
+            resp = urllib.request.urlopen(req, timeout=10, context=k8s_ctx)
+            svc_data = json.loads(resp.read())
 
-            if not external_host:
-                print(f"  SKIP {svc_name}: missing external-host annotation")
-                continue
+            for svc in svc_data.get("items", []):
+                svc_name = svc["metadata"]["name"]
+                annotations = svc["metadata"].get("annotations", {})
+                external_host = annotations.get("quarantine.sparafucile.net/external-host", "")
+                skip_regex = annotations.get("quarantine.sparafucile.net/skip-path-regex", "")
 
-            # Ersten Port verwenden
-            ports = svc.get("spec", {}).get("ports", [])
-            port = ports[0]["port"] if ports else 80
+                if not external_host:
+                    print(f"  SKIP {svc_name}: missing external-host annotation")
+                    continue
 
-            provider_name = f"{APP_NAMESPACE}-{svc_name}"
-            internal_host = f"http://{svc_name}.{APP_NAMESPACE}.svc.{K8S_CLUSTER_DOMAIN}:{port}"
+                # Duplikat-Check (mitmweb koennte statisch UND dynamisch entdeckt werden)
+                provider_name = f"{disco_ns}-{svc_name}"
+                if any(s["name"] == provider_name for s in SERVICES):
+                    print(f"  SKIP {provider_name}: already in static list")
+                    continue
 
-            print(f"  Discovered: {provider_name} -> {external_host} (internal: {internal_host})")
-            SERVICES.append({
-                "name": provider_name,
-                "external_host": external_host,
-                "internal_host": internal_host,
-                "skip_path_regex": skip_regex,
-            })
+                # Ersten Port verwenden
+                ports = svc.get("spec", {}).get("ports", [])
+                port = ports[0]["port"] if ports else 80
+
+                internal_host = f"http://{svc_name}.{disco_ns}.svc.{K8S_CLUSTER_DOMAIN}:{port}"
+
+                print(f"  Discovered: {provider_name} -> {external_host} (internal: {internal_host})")
+                SERVICES.append({
+                    "name": provider_name,
+                    "external_host": external_host,
+                    "internal_host": internal_host,
+                    "skip_path_regex": skip_regex,
+                })
 
     except FileNotFoundError:
         print("  WARNING: No K8s service account token found — running outside cluster? Skipping discovery.")

@@ -63,7 +63,8 @@ data:
     # 1. Alle Provider finden die zu unserem Namespace gehoeren
     #    Suche nach APP_NAMESPACE-Prefix (z.B. "openclaw-quarantine-") UND
     #    nach Legacy APP_NAME-Prefix (z.B. "openclaw-") fuer Rueckwaertskompatibilitaet
-    prefixes = [f"{APP_NAMESPACE}-"]
+    GW_NAMESPACE = "{{ include "quarantine-wrapper.gwNamespace" . }}"
+    prefixes = [f"{APP_NAMESPACE}-", f"{GW_NAMESPACE}-"]
     if APP_NAME != APP_NAMESPACE:
         prefixes.append(f"{APP_NAME}-")
     print(f"\n=== Finding providers with prefixes: {prefixes} ===")
