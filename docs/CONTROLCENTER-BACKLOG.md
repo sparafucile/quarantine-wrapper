@@ -1,12 +1,12 @@
 # Quarantine ControlCenter — Backlog
 
-Stand: Session 200 (2026-03-19), CC v1.0.10 deployed.
+Stand: Session 200 (2026-03-19), CC v1.0.14 deployed.
 
 ## Aktueller Stand
 
-CC v1.0.10 deployed im `openclaw-quarantine-gw` Namespace.
+CC v1.0.14 deployed im `openclaw-quarantine-gw` Namespace.
 URL: https://p-openclaw-quarantine-cc-k8s.sparafucile.net (hinter Authentik)
-Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.10`
+Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.14`
 
 ### Funktioniert
 - Whitelist-Tab: Domains aus ArgoCD inline values, Add/Remove mit Sync-Status-Feedback (Committed -> Syncing -> Active)
@@ -44,27 +44,34 @@ Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.1
 - [x] mitmweb Deep-Links in Traffic-Tab (/#/flows/{id}/request)
 - [x] Pod-Image-Anzeige: spec.containers statt status.containerStatuses (Klartext statt Digest)
 - [x] MITMWEB_URL Env-Var aus Helm-Template
+- [x] CA-Trust initContainer fuer CC (SSL_CERT_FILE + REQUESTS_CA_BUNDLE)
+- [x] Hello-World HTTPRoute: Duplizierte Route entfernt, Authentik-Schutz funktioniert
+- [x] CiliumNetworkPolicy Headlamp-Links: Korrektes ciliumnetworkpolicies.cilium.io Format
+- [x] clusterDNS: Alle hardcoded DNS durch .Values.clusterDNS ersetzt
+- [x] mitmproxy Ingress-Policy: CC als erlaubte Quelle fuer Port 8080 (Root Cause Health-Check)
+- [x] Health-Check zeigt Test-URL im UI an
 
-## Offenes Backlog (priorisiert)
+**P4 (erledigt):**
+- [x] authentik-setup: Scannt jetzt App- UND GW-Namespace nach Services mit Authentik-Label
+- [x] Cleanup-Script: Enthaelt GW-Namespace-Prefix fuer vollstaendiges Aufraumen
 
-### P3 — CI/CD (verbleibend)
-- [ ] Automatisches Image-Tag-Update: Stage 2 soll CC-Image-Tag in values.yaml aktualisieren (funktioniert technisch, aber GIT_PREVIOUS_SUCCESSFUL_COMMIT Race Condition verhindert manchmal den Build-Trigger)
-
-### P4 — Authentik-Integration
-- [ ] authentik-setup Script: GW-Namespace nach Services mit `quarantine.sparafucile.net/authentik` Label scannen (aktuell wird CC-Provider manuell erstellt)
-- [ ] Cleanup-Job: DNS-Egress fuer Setup/Cleanup-Pods pruefen
-
-### P5 — Architektur-Cleanup
-- [ ] values-openclaw.yaml: Domains aus Datei in ArgoCD inline values migrieren, Datei aus Repo loeschen
+**P5 (erledigt):**
+- [x] values-openclaw.yaml: War bereits nach ArgoCD inline values migriert
 - [ ] ArgoCD openclaw App: Sync-Hook-Probleme loesen (Hooks blockieren bei jedem Sync)
 
-### P6 — Weitere Features
+**P6 (erledigt):**
+- [x] Paketmanager-Templates: npm, pip/PyPI, apt/Debian, Docker Hub, GitHub API
+- [x] Favicons fuer CC (blauer Q-Badge) und HelloWorld (HW-Badge)
+- [x] Batch-Whitelist: "Alle Freigeben" Button im Denied-Tab
+
+## Offenes Backlog
+
+### Verbleibend
 - [ ] Bypass-Modus: Zeitgesteuerte All-Domains-Freigabe testen (UI + Backend vorhanden)
-- [ ] CC Paketmanager-Templates: Schnell-Freigabe fuer npm, pip, apt Domains
-- [ ] Favicons fuer CC + HelloWorld
-- [ ] Squid access.log persistent machen: PVC fuer /var/log/squid (optional, cc-state reicht aktuell)
+- [ ] Squid access.log persistent machen: PVC fuer /var/log/squid (optional, cc-state reicht)
 - [ ] Traffic-Tab: Auto-Refresh Intervall konfigurierbar machen
-- [ ] Denied-Tab: "Alle Freigeben" Button fuer Batch-Whitelist
+- [ ] ArgoCD Sync-Hook-Probleme (Hooks blockieren bei jedem Sync)
+- [ ] Jenkins CI/CD Race Condition (GIT_PREVIOUS_SUCCESSFUL_COMMIT)
 
 ## Architektur-Hinweise
 
