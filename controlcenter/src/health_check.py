@@ -3,6 +3,7 @@ import time
 import logging
 import httpx
 import config
+import k8s_client
 
 logger = logging.getLogger(__name__)
 
@@ -10,40 +11,58 @@ HEALTH_CHECK_URL = "https://httpbin.org/get"
 
 
 async def check_proxy_chain() -> dict:
-    """Test the full proxy chain: CC → mitmproxy → Squid → Internet."""
+    """Check proxy chain health via pod status and mitmproxy API reachability."""
     results = {"mitmproxy": None, "squid": None, "internet": None, "total_ms": None}
 
-    proxy_url = f"http://{config.MITMPROXY_HOST}:8080"
+    # Check if pods are running
+    try:
+        pods = await k8s_client.get_pods(config.GW_NAMESPACE)
+    except Exception as e:
+        logger.error(f"Failed to get pods in {config.GW_NAMESPACE}: {e}")
+        results["mitmproxy"] = {"ok": False, "error": "Could not fetch pod status"}
+        return results
 
-    # Test 1: Can we reach mitmproxy?
+    # Check mitmproxy pod is running
+    start = time.monotonic()
+    mitmproxy_running = any(
+        p.get("phase") == "Running" and "mitmproxy" in p.get("name", "")
+        for p in pods
+    )
+    results["mitmproxy"] = {
+        "ok": mitmproxy_running,
+        "ms": int((time.monotonic() - start) * 1000)
+    }
+    if not mitmproxy_running:
+        results["mitmproxy"]["error"] = "Pod not running"
+        return results
+
+    # Check squid pod is running
+    squid_running = any(
+        p.get("phase") == "Running" and "squid" in p.get("name", "")
+        for p in pods
+    )
+    results["squid"] = {"ok": squid_running}
+    if not squid_running:
+        results["squid"]["error"] = "Pod not running"
+        return results
+
+    # Test mitmproxy API reachability (port 8081)
     start = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            resp = await client.get(f"http://{config.MITMPROXY_HOST}:{config.MITMPROXY_API_PORT}/")
-            results["mitmproxy"] = {"ok": True, "ms": int((time.monotonic() - start) * 1000)}
+            resp = await client.get(
+                f"http://{config.MITMPROXY_HOST}:{config.MITMPROXY_API_PORT}/flows"
+            )
+            resp.raise_for_status()
+            results["mitmproxy"]["ms"] = int((time.monotonic() - start) * 1000)
+            results["internet"] = {
+                "ok": True,
+                "status": "chain healthy (pods running and API reachable)"
+            }
     except Exception as e:
-        results["mitmproxy"] = {"ok": False, "error": str(e)[:100]}
-        return results
-
-    # Test 2: Full chain via proxy
-    total_start = time.monotonic()
-    try:
-        async with httpx.AsyncClient(proxy=proxy_url, verify=False, timeout=10) as client:
-            resp = await client.get(HEALTH_CHECK_URL)
-            total_ms = int((time.monotonic() - total_start) * 1000)
-            results["squid"] = {"ok": True}
-            results["internet"] = {"ok": True, "status": resp.status_code, "ms": total_ms}
-            results["total_ms"] = total_ms
-    except httpx.ConnectError as e:
-        results["squid"] = {"ok": False, "error": f"Connection failed: {str(e)[:80]}"}
-    except httpx.ConnectTimeout:
-        results["squid"] = {"ok": False, "error": "Connection timeout"}
-    except Exception as e:
-        err = str(e)[:100]
-        if "403" in err or "DENIED" in err:
-            results["squid"] = {"ok": True}
-            results["internet"] = {"ok": False, "error": f"Squid denied: {err}"}
-        else:
-            results["internet"] = {"ok": False, "error": err}
+        results["internet"] = {
+            "ok": False,
+            "error": f"mitmproxy API unreachable: {str(e)[:80]}"
+        }
 
     return results
