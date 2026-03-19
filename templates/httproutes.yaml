@@ -71,3 +71,38 @@ spec:
           port: {{ .Values.mitmproxy.webPort }}
         {{- end }}
 {{- end }}
+
+{{- if .Values.controlcenter.enabled }}
+---
+# ControlCenter HTTPRoute
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .Values.appName }}-controlcenter
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: {{ include "quarantine-wrapper.ccHostname" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      sectionName: {{ .Values.gateway.sectionName }}
+  hostnames:
+    - {{ include "quarantine-wrapper.ccHostname" . }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        {{- if .Values.authentik.enabled }}
+        - name: authentik-server
+          namespace: {{ .Values.authentik.namespace }}
+          port: 80
+        {{- else }}
+        - name: controlcenter
+          port: {{ .Values.controlcenter.port }}
+        {{- end }}
+{{- end }}
