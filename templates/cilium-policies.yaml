@@ -276,3 +276,55 @@ spec:
     - toEntities:
         - kube-apiserver
 {{- end }}
+
+{{- if .Values.controlcenter.enabled }}
+---
+# --- Gateway-Namespace: ControlCenter K8s API-Server + Egress ---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-controlcenter-egress
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app: controlcenter
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toCIDR:
+        - {{ .Values.network.serviceCIDR }}
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    {{- if .Values.mitmproxy.enabled }}
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+            app: mitmproxy-debug
+      toPorts:
+        - ports:
+            - port: "{{ .Values.mitmproxy.webPort }}"
+              protocol: TCP
+    {{- end }}
+    # Gitea + ArgoCD (external via Cloudflare)
+    - toCIDR:
+        - 0.0.0.0/0
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+{{- end }}
