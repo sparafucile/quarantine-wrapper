@@ -6,7 +6,7 @@
 # und die helloWorld HTTPRoute fuer den Test-Pod.
 # ============================================================================
 
-{{- if and .Values.helloWorld.enabled .Values.helloWorld.hostname }}
+{{- if .Values.helloWorld.enabled }}
 ---
 # HelloWorld HTTPRoute (Debug-Pod)
 apiVersion: gateway.networking.k8s.io/v1
