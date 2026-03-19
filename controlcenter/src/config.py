@@ -30,7 +30,18 @@ MITMPROXY_API_PORT = int(os.getenv("MITMPROXY_API_PORT", "8081"))
 MITMPROXY_PASSWORD = os.getenv("MITMPROXY_PASSWORD", "")
 
 # Build info
-VERSION = "1.0.0"
+# Read VERSION from file (same pattern as cluster-status-dashboard)
+from pathlib import Path
+_version_candidates = [
+    Path(__file__).resolve().parent / "VERSION",
+    Path(__file__).resolve().parent.parent / "VERSION",
+]
+VERSION = "0.0.0"
+for _vf in _version_candidates:
+    if _vf.exists():
+        VERSION = _vf.read_text().strip()
+        break
+
 BUILD_NUMBER = os.getenv("BUILD_NUMBER", "dev")
 BUILD_DATE = os.getenv("BUILD_DATE", "")
 
