@@ -191,6 +191,10 @@ spec:
           value: {{ .Values.build.date | default "" | quote }}
         - name: BUILD_COMMIT
           value: {{ .Values.build.commit | default "" | quote }}
+        {{- if .Values.mitmproxy.enabled }}
+        - name: MITMWEB_URL
+          value: {{ printf "https://%s" (include "quarantine-wrapper.mitmwebHostname" .) | quote }}
+        {{- end }}
         resources:
           {{- toYaml .Values.controlcenter.resources | nindent 10 }}
         livenessProbe:

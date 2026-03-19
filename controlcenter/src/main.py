@@ -62,6 +62,7 @@ async def get_info():
         "app_name": config.APP_NAME,
         "app_namespace": config.APP_NAMESPACE,
         "gw_namespace": config.GW_NAMESPACE,
+        "mitmweb_url": config.MITMWEB_URL,
     }
 
 

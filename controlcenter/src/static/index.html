@@ -190,6 +190,7 @@ tr.released td { opacity: 0.5; text-decoration: line-through; }
 <script>
 const API = '';
 const HEADLAMP = 'https://p-headlamp-k8s.sparafucile.net';
+let MITMWEB_URL = '';  // Set from /api/info response
 let currentTab = 'whitelist';
 let trafficData = [];
 let trafficSort = {col: 'timestamp', dir: 'desc'};
@@ -429,7 +430,12 @@ function renderTraffic() {
                    f.status_code >= 300 ? `<span class="badge badge-info">${f.status_code}</span>` :
                    `<span class="badge badge-ok">${f.status_code}</span>`;
     const size = f.size > 1048576 ? `${(f.size/1048576).toFixed(1)}MB` : f.size > 1024 ? `${(f.size/1024).toFixed(1)}KB` : `${f.size}B`;
-    return `<tr><td style="font-size:0.75rem">${t}</td><td>${esc(f.method)}</td><td><code>${esc(f.host)}</code></td><td style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.path)}</td><td>${status}</td><td>${size}</td></tr>`;
+    // Deep-link to mitmweb flow detail (/#/flows/{id}/request)
+    const flowLink = (MITMWEB_URL && f.id) ? `${MITMWEB_URL}/#/flows/${esc(f.id)}/request` : '';
+    const hostCell = flowLink
+      ? `<a href="${flowLink}" target="_blank" class="policy-link"><code>${esc(f.host)}</code></a>`
+      : `<code>${esc(f.host)}</code>`;
+    return `<tr><td style="font-size:0.75rem">${t}</td><td>${esc(f.method)}</td><td>${hostCell}</td><td style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.path)}</td><td>${status}</td><td>${size}</td></tr>`;
   }).join('');
 }
 
@@ -517,6 +523,7 @@ async function refreshInfo() {
   try {
     const info = await api('/api/info');
     document.getElementById('app-name').textContent = `${info.app_name} | ${info.app_namespace}`;
+    if (info.mitmweb_url) MITMWEB_URL = info.mitmweb_url;
     const build = info.build_number && info.build_number !== 'dev' ? `Build #${info.build_number}` : '';
     const date = info.build_date || '';
     const commit = info.build_commit ? info.build_commit.substring(0, 8) : '';

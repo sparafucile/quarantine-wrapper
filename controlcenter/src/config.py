@@ -28,6 +28,7 @@ ARGOCD_APP_NAME = os.getenv("ARGOCD_APP_NAME", APP_NAME)
 MITMPROXY_HOST = os.getenv("MITMPROXY_HOST", f"mitmproxy.{GW_NAMESPACE}.svc.{CLUSTER_DNS}")
 MITMPROXY_API_PORT = int(os.getenv("MITMPROXY_API_PORT", "8081"))
 MITMPROXY_PASSWORD = os.getenv("MITMPROXY_PASSWORD", "")
+MITMWEB_URL = os.getenv("MITMWEB_URL", "")  # External mitmweb URL for flow deep-links
 
 # Build info
 # Read VERSION from file (same pattern as cluster-status-dashboard)
