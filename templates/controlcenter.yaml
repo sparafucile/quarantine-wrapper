@@ -1,0 +1,204 @@
+{{- if .Values.controlcenter.enabled }}
+# ============================================================================
+# Quarantine ControlCenter
+# ============================================================================
+# Web-UI zur Verwaltung der Quarantine-Umgebung: Squid-Whitelist, Denied-Logs,
+# mitmproxy Traffic, Pod-Status, NetworkPolicies, Proxy-Chain Health.
+# Laeuft im GW-Namespace, hinter Authentik, unerreichbar vom App-Namespace.
+# ============================================================================
+
+---
+# ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: controlcenter
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    app: controlcenter
+---
+# Role: GW-Namespace (read pods, configmaps, events + patch squid-config/cc-state)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: controlcenter
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: [pods, services, events]
+  verbs: [get, list, watch]
+- apiGroups: [""]
+  resources: [pods/log]
+  verbs: [get]
+- apiGroups: [""]
+  resources: [pods]
+  verbs: [delete]
+- apiGroups: [""]
+  resources: [configmaps]
+  verbs: [get, list, watch, create, patch]
+- apiGroups: ["apps"]
+  resources: [deployments, replicasets]
+  verbs: [get, list]
+- apiGroups: ["networking.k8s.io"]
+  resources: [networkpolicies]
+  verbs: [get, list]
+- apiGroups: ["cilium.io"]
+  resources: [ciliumnetworkpolicies]
+  verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: controlcenter
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: controlcenter
+subjects:
+- kind: ServiceAccount
+  name: controlcenter
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+---
+# Role: App-Namespace (read pods, services, events, policies)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: controlcenter-reader
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: [pods, services, events]
+  verbs: [get, list, watch]
+- apiGroups: ["apps"]
+  resources: [deployments, replicasets]
+  verbs: [get, list]
+- apiGroups: ["networking.k8s.io"]
+  resources: [networkpolicies]
+  verbs: [get, list]
+- apiGroups: ["cilium.io"]
+  resources: [ciliumnetworkpolicies]
+  verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: controlcenter-reader
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: controlcenter-reader
+subjects:
+- kind: ServiceAccount
+  name: controlcenter
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: controlcenter
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    app: controlcenter
+    {{- if .Values.authentik.enabled }}
+    quarantine.sparafucile.net/authentik: "true"
+    {{- end }}
+  {{- if .Values.authentik.enabled }}
+  annotations:
+    quarantine.sparafucile.net/external-host: "https://{{ include "quarantine-wrapper.ccHostname" . }}"
+    quarantine.sparafucile.net/skip-path-regex: ""
+  {{- end }}
+spec:
+  selector:
+    app: controlcenter
+  ports:
+  - port: {{ .Values.controlcenter.port }}
+    targetPort: {{ .Values.controlcenter.port }}
+    name: http
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controlcenter
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+    app: controlcenter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: controlcenter
+  template:
+    metadata:
+      labels:
+        app: controlcenter
+        app.kubernetes.io/part-of: {{ .Values.appName }}-quarantine
+        app.kubernetes.io/component: controlcenter
+    spec:
+      serviceAccountName: controlcenter
+      containers:
+      - name: controlcenter
+        image: {{ .Values.controlcenter.image.repository }}:{{ .Values.controlcenter.image.tag }}
+        ports:
+        - containerPort: {{ .Values.controlcenter.port }}
+          name: http
+        env:
+        - name: APP_NAME
+          value: {{ .Values.appName | quote }}
+        - name: APP_NAMESPACE
+          value: {{ include "quarantine-wrapper.appNamespace" . | quote }}
+        - name: GW_NAMESPACE
+          value: {{ include "quarantine-wrapper.gwNamespace" . | quote }}
+        - name: CC_PORT
+          value: {{ .Values.controlcenter.port | quote }}
+        - name: GITEA_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cc-gitea-token
+              key: token
+        - name: ARGOCD_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cc-argocd-token
+              key: token
+        {{- if .Values.mitmproxy.enabled }}
+        - name: MITMPROXY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mitmweb-password
+              key: password
+              optional: true
+        {{- end }}
+        - name: BUILD_NUMBER
+          value: {{ .Values.controlcenter.buildNumber | default "" | quote }}
+        - name: BUILD_DATE
+          value: {{ .Values.controlcenter.buildDate | default "" | quote }}
+        resources:
+          {{- toYaml .Values.controlcenter.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.controlcenter.port }}
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: {{ .Values.controlcenter.port }}
+          initialDelaySeconds: 5
+          periodSeconds: 15
+{{- end }}
