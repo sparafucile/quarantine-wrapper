@@ -577,6 +577,7 @@ async function refreshHealth() {
       ${hop('Internet', data.internet)}
     </div>
     ${data.total_ms ? `<p style="margin-top:0.75rem;color:var(--muted)">Gesamtlatenz: ${data.total_ms}ms</p>` : ''}
+    ${data.check_url ? `<p style="margin-top:0.25rem;color:var(--muted);font-size:0.7rem">Test-URL: <code>${esc(data.check_url)}</code> via Proxy-Kette</p>` : ''}
   `;
 }
 

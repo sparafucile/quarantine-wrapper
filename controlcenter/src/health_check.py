@@ -30,7 +30,7 @@ async def check_proxy_chain() -> dict:
     3. Full proxy chain — HTTP request through mitmproxy:8080 to internet
     4. If chain fails: individual hop diagnostics (TCP to each component)
     """
-    results = {"mitmproxy": None, "squid": None, "internet": None, "total_ms": None}
+    results = {"mitmproxy": None, "squid": None, "internet": None, "total_ms": None, "check_url": HEALTH_CHECK_URL}
 
     # 1. Check pod status
     try:
