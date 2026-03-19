@@ -596,7 +596,10 @@ async function refreshInfo() {
   try {
     const argo = await api('/api/argocd/status');
     const cls = argo.sync==='Synced' ? 'badge-ok' : 'badge-warn';
-    document.getElementById('argocd-status').innerHTML = `ArgoCD: <span class="badge ${cls}">${esc(argo.sync)}</span> ${esc(argo.revision)}`;
+    const argoUrl = `https://p-argocd-k8s.sparafucile.net/applications/openclaw`;
+    const giteaCommitUrl = argo.revision ? `https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/commit/${argo.revision}` : '';
+    const revLink = giteaCommitUrl ? `<a href="${giteaCommitUrl}" target="_blank" class="policy-link">${esc(argo.revision)}</a>` : esc(argo.revision);
+    document.getElementById('argocd-status').innerHTML = `<a href="${argoUrl}" target="_blank" class="policy-link">ArgoCD</a>: <span class="badge ${cls}">${esc(argo.sync)}</span> ${revLink}`;
   } catch(e) {}
 }
 
