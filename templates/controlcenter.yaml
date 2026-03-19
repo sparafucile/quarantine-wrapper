@@ -186,9 +186,11 @@ spec:
               optional: true
         {{- end }}
         - name: BUILD_NUMBER
-          value: {{ .Values.controlcenter.buildNumber | default "" | quote }}
+          value: {{ .Values.build.number | default "dev" | quote }}
         - name: BUILD_DATE
-          value: {{ .Values.controlcenter.buildDate | default "" | quote }}
+          value: {{ .Values.build.date | default "" | quote }}
+        - name: BUILD_COMMIT
+          value: {{ .Values.build.commit | default "" | quote }}
         resources:
           {{- toYaml .Values.controlcenter.resources | nindent 10 }}
         livenessProbe:

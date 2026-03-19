@@ -42,15 +42,22 @@ async def check_proxy_chain() -> dict:
         return results
 
     # 2. Test mitmproxy API reachability (port 8081)
+    #    mitmweb uses ?token= query parameter for auth (NOT Basic Auth!)
     start = time.monotonic()
-    auth = None
+    params = {}
     if config.MITMPROXY_PASSWORD:
-        auth = httpx.BasicAuth(username="", password=config.MITMPROXY_PASSWORD)
+        params["token"] = config.MITMPROXY_PASSWORD
     try:
-        async with httpx.AsyncClient(timeout=5, auth=auth) as client:
+        async with httpx.AsyncClient(timeout=5) as client:
             resp = await client.get(
-                f"http://{config.MITMPROXY_HOST}:{config.MITMPROXY_API_PORT}/flows"
+                f"http://{config.MITMPROXY_HOST}:{config.MITMPROXY_API_PORT}/flows",
+                params=params,
             )
+            if resp.status_code == 403 or resp.status_code == 401:
+                results["mitmproxy"] = {"ok": False, "error": f"Auth failed (HTTP {resp.status_code})"}
+                results["squid"] = {"ok": squid_running}
+                return results
+            resp.raise_for_status()
             ms = int((time.monotonic() - start) * 1000)
             results["mitmproxy"] = {"ok": True, "ms": ms}
     except Exception as e:

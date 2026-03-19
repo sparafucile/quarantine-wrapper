@@ -44,6 +44,7 @@ for _vf in _version_candidates:
 
 BUILD_NUMBER = os.getenv("BUILD_NUMBER", "dev")
 BUILD_DATE = os.getenv("BUILD_DATE", "")
+BUILD_COMMIT = os.getenv("BUILD_COMMIT", "")
 
 # CC state ConfigMap
 CC_STATE_CM = "cc-state"

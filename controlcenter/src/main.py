@@ -27,6 +27,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Quarantine ControlCenter v{config.VERSION} starting")
     logger.info(f"App: {config.APP_NAME}, NS: {config.APP_NAMESPACE}/{config.GW_NAMESPACE}")
     await bypass_scheduler.init()
+    await squid_parser._load_cache()
     yield
     logger.info("Shutting down")
 
@@ -57,6 +58,7 @@ async def get_info():
         "version": config.VERSION,
         "build_number": config.BUILD_NUMBER,
         "build_date": config.BUILD_DATE,
+        "build_commit": config.BUILD_COMMIT,
         "app_name": config.APP_NAME,
         "app_namespace": config.APP_NAMESPACE,
         "gw_namespace": config.GW_NAMESPACE,

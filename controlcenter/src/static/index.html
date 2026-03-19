@@ -58,6 +58,16 @@ a.policy-link:hover { text-decoration: underline; }
 @media (max-width: 768px) { .ns-grid { grid-template-columns: 1fr; } input[type="text"] { width: 100%; } }
 .loading { color: var(--muted); font-style: italic; }
 .footer { text-align: center; padding: 1rem 0; font-size: 0.7rem; color: var(--muted); border-top: 1px solid var(--border); margin-top: 2rem; }
+/* Sync status indicator */
+.sync-status { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.7rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; margin-left: 0.5rem; }
+.sync-status.committed { background: rgba(59,130,246,0.15); color: var(--accent); }
+.sync-status.syncing { background: rgba(245,158,11,0.15); color: var(--warn); }
+.sync-status.active { background: rgba(34,197,94,0.15); color: var(--ok); }
+.sync-status.error { background: rgba(239,68,68,0.15); color: var(--danger); }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+.sync-status.syncing { animation: pulse 1.5s infinite; }
+/* Denied: released marker */
+tr.released td { opacity: 0.5; text-decoration: line-through; }
 </style>
 </head>
 <body>
@@ -87,7 +97,7 @@ a.policy-link:hover { text-decoration: underline; }
   <!-- WHITELIST -->
   <div class="panel active" id="panel-whitelist">
     <div class="card">
-      <h2>Squid Domain-Whitelist</h2>
+      <h2>Squid Domain-Whitelist <span id="sync-indicator"></span></h2>
       <div class="inline-form">
         <input type="text" id="new-domain" placeholder="z.B. api.openai.com" onkeydown="if(event.key==='Enter')addDomain()">
         <button class="btn-primary" onclick="addDomain()">Hinzufuegen</button>
@@ -169,8 +179,8 @@ a.policy-link:hover { text-decoration: underline; }
   <div class="panel" id="panel-health">
     <div class="card">
       <h2>Proxy-Chain Health</h2>
-      <div id="health-display" class="loading">Pruefe...</div>
-      <button class="btn-primary" onclick="refreshHealth()" style="margin-top:1rem">Erneut pruefen</button>
+      <div id="health-display" style="color:var(--muted)">Klicke "Pruefen" um die Proxy-Kette zu testen.</div>
+      <button class="btn-primary" onclick="refreshHealth()" style="margin-top:1rem">Pruefen</button>
     </div>
   </div>
 
@@ -183,6 +193,11 @@ const HEADLAMP = 'https://p-headlamp-k8s.sparafucile.net';
 let currentTab = 'whitelist';
 let trafficData = [];
 let trafficSort = {col: 'timestamp', dir: 'desc'};
+// Tabs that auto-refresh (health is excluded — manual only)
+const AUTO_REFRESH_TABS = ['whitelist', 'denied', 'traffic', 'pods'];
+// Client-side denied cache: survives Squid restarts
+let deniedCache = [];
+let releasedDomains = new Set();
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', t.textContent.toLowerCase().replace(/\s/g,'') === name));
@@ -206,6 +221,42 @@ async function refreshTab(tab) {
     else if (tab === 'policies') await refreshPolicies();
     else if (tab === 'health') await refreshHealth();
   } catch(e) { console.error(e); }
+}
+
+// --- Sync Status Feedback ---
+function showSyncStatus(phase, detail) {
+  const el = document.getElementById('sync-indicator');
+  if (phase === 'committed') {
+    el.innerHTML = `<span class="sync-status committed">Committed</span>`;
+    // Auto-progress to syncing after brief delay
+    setTimeout(() => showSyncStatus('syncing'), 500);
+  } else if (phase === 'syncing') {
+    el.innerHTML = `<span class="sync-status syncing">Syncing...</span>`;
+    // Poll ArgoCD status until Synced
+    pollSyncStatus();
+  } else if (phase === 'active') {
+    el.innerHTML = `<span class="sync-status active">\u2713 Active</span>`;
+    setTimeout(() => { el.innerHTML = ''; }, 5000);
+  } else if (phase === 'error') {
+    el.innerHTML = `<span class="sync-status error">\u2717 ${esc(detail||'Sync-Fehler')}</span>`;
+    setTimeout(() => { el.innerHTML = ''; }, 8000);
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+async function pollSyncStatus(attempts) {
+  attempts = attempts || 0;
+  if (attempts > 20) { showSyncStatus('error', 'Sync timeout'); return; }
+  try {
+    const argo = await api('/api/argocd/status');
+    if (argo.sync === 'Synced' && argo.operationPhase !== 'Running') {
+      showSyncStatus('active');
+      await refreshWhitelist();
+      return;
+    }
+  } catch(e) {}
+  setTimeout(() => pollSyncStatus(attempts + 1), 3000);
 }
 
 // --- Whitelist ---
@@ -232,20 +283,29 @@ async function addDomain() {
   const domain = input.value.trim();
   if (!domain) return;
   input.disabled = true;
+  showSyncStatus('committed');
   try {
-    await api('/api/whitelist/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
+    const result = await api('/api/whitelist/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
     input.value = '';
-    await refreshWhitelist();
-  } catch(e) { alert('Fehler: '+e.message); }
+    if (result.status === 'exists') {
+      showSyncStatus('');
+      await refreshWhitelist();
+    }
+    // Sync status will auto-progress via pollSyncStatus
+  } catch(e) {
+    showSyncStatus('error', e.message);
+  }
   input.disabled = false;
 }
 
 async function removeDomain(domain) {
   if (!confirm(`"${domain}" von der Whitelist entfernen?`)) return;
+  showSyncStatus('committed');
   try {
     await api('/api/whitelist/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
-    await refreshWhitelist();
-  } catch(e) { alert('Fehler: '+e.message); }
+  } catch(e) {
+    showSyncStatus('error', e.message);
+  }
 }
 
 async function activateBypass() {
@@ -273,21 +333,49 @@ function updateBypassTimer(expiresAt) {
   update();
 }
 
-// --- Denied ---
+// --- Denied (with client-side cache to survive Squid restarts) ---
 async function refreshDenied() {
   const data = await api('/api/squid/denied');
+  // Merge new denied entries into cache (deduplicate by domain+timestamp)
+  const newEntries = data.denied || [];
+  const existingKeys = new Set(deniedCache.map(d => d.domain + '|' + d.timestamp));
+  for (const entry of newEntries) {
+    const key = entry.domain + '|' + entry.timestamp;
+    if (!existingKeys.has(key)) {
+      deniedCache.push(entry);
+      existingKeys.add(key);
+    }
+  }
+  // Keep max 500 cached entries
+  if (deniedCache.length > 500) deniedCache = deniedCache.slice(-500);
+  renderDenied();
+}
+
+function renderDenied() {
   const tbody = document.getElementById('denied-body');
-  if (!data.denied.length) {
+  if (!deniedCache.length) {
     tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted)">Keine abgelehnten Domains gefunden</td></tr>';
     return;
   }
-  tbody.innerHTML = data.denied.slice(-100).reverse().map(d =>
-    `<tr><td style="font-size:0.75rem">${esc(d.timestamp)}</td><td><code>${esc(d.domain)}</code></td><td style="font-size:0.75rem">${esc(d.client)}</td><td>${esc(d.method)}</td><td><button class="btn-ok btn-sm" onclick="addDomainDirect('${esc(d.domain)}')">Freigeben</button></td></tr>`
-  ).join('');
+  tbody.innerHTML = deniedCache.slice(-100).reverse().map(d => {
+    const released = releasedDomains.has(d.domain);
+    const cls = released ? ' class="released"' : '';
+    const btn = released
+      ? `<span class="badge badge-ok">freigegeben</span>`
+      : `<button class="btn-ok btn-sm" onclick="addDomainDirect('${esc(d.domain)}')">Freigeben</button>`;
+    return `<tr${cls}><td style="font-size:0.75rem">${esc(d.timestamp)}</td><td><code>${esc(d.domain)}</code></td><td style="font-size:0.75rem">${esc(d.client)}</td><td>${esc(d.method)}</td><td>${btn}</td></tr>`;
+  }).join('');
 }
 
 async function addDomainDirect(domain) {
-  try { await api('/api/whitelist/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})}); await refreshDenied(); } catch(e) { alert('Fehler: '+e.message); }
+  showSyncStatus('committed');
+  try {
+    await api('/api/whitelist/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
+    releasedDomains.add(domain);
+    renderDenied();
+  } catch(e) {
+    showSyncStatus('error', e.message);
+  }
 }
 
 // --- Traffic (sortable + filterable) ---
@@ -401,7 +489,7 @@ async function refreshPolicies() {
   }).join('');
 }
 
-// --- Health ---
+// --- Health (manual only, no auto-refresh) ---
 async function refreshHealth() {
   document.getElementById('health-display').innerHTML = '<span class="loading">Pruefe Proxy-Chain...</span>';
   const data = await api('/api/health');
@@ -430,7 +518,8 @@ async function refreshInfo() {
     document.getElementById('app-name').textContent = `${info.app_name} | ${info.app_namespace}`;
     const build = info.build_number && info.build_number !== 'dev' ? `Build #${info.build_number}` : '';
     const date = info.build_date || '';
-    const parts = [`Quarantine ControlCenter v${info.version}`, build, date].filter(Boolean);
+    const commit = info.build_commit ? info.build_commit.substring(0, 8) : '';
+    const parts = [`Quarantine ControlCenter v${info.version}`, build, commit, date].filter(Boolean);
     document.getElementById('footer').textContent = parts.join(' | ');
   } catch(e) {}
   try {
@@ -445,7 +534,8 @@ function esc(s) { const d = document.createElement('div'); d.textContent = s; re
 // Init
 refreshInfo();
 refreshTab('whitelist');
-setInterval(() => refreshTab(currentTab), 15000);
+// Auto-refresh only non-health tabs (health is manual)
+setInterval(() => { if (AUTO_REFRESH_TABS.includes(currentTab)) refreshTab(currentTab); }, 15000);
 setInterval(refreshInfo, 30000);
 </script>
 </body>

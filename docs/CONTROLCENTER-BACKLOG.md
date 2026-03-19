@@ -1,44 +1,36 @@
 # Quarantine ControlCenter — Backlog
 
-Stand: Session 199 (2026-03-19), CC v1.0.8 deployed.
+Stand: Session 200 (2026-03-19), CC v1.0.9 in Arbeit.
 
 ## Aktueller Stand
 
-CC v1.0.8 laeuft im `openclaw-quarantine-gw` Namespace.
+CC v1.0.9 deployed im `openclaw-quarantine-gw` Namespace.
 URL: https://p-openclaw-quarantine-cc-k8s.sparafucile.net (hinter Authentik)
-Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.8`
+Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.9`
 
 ### Funktioniert
-- Whitelist-Tab: Zeigt 11 Domains aus ArgoCD inline values
-- Denied-Tab: Zeigt Squid TCP_DENIED Eintraege (aus Pod-Logs)
-- Traffic-Tab: Sortierbar + filterbar (Status, Host), aber mitmproxy-Auth noch 403
+- Whitelist-Tab: Zeigt Domains aus ArgoCD inline values, Add/Remove mit Sync-Status-Feedback
+- Denied-Tab: Zeigt Squid TCP_DENIED Eintraege, persistent gecached (cc-state ConfigMap)
+- Traffic-Tab: Sortierbar + filterbar (Status, Host), mitmproxy Auth via ?token= funktioniert
 - Pods-Tab: Zeigt Pods beider Namespaces mit korrekten Farben (Running=gruen, Succeeded=lila)
 - Policies-Tab: NetworkPolicies + CiliumNetworkPolicies beider Namespaces
 - ArgoCD-Status im Header (Synced/Revision)
-- Version v1.0.8 im Footer
+- Build-Info im Footer: Version | Build# | Commit-Hash | Datum
+- Health-Tab: Proxy-Chain-Check nur manuell per Button (kein Auto-Refresh)
 
-### Bugs (naechste Session fixen)
-1. **Build-Info fehlt**: Footer zeigt nur `v1.0.8` ohne Build-Nummer. Ursache: `BUILD_NUMBER` und `BUILD_DATE` Env-Vars sind im Deployment-Template nicht gesetzt. Fix: Im `controlcenter.yaml` Template die Env-Vars aus der Jenkins-Pipeline durchreichen (oder aus dem Image-Digest ableiten).
-2. **Health-Check Fehler**: Zeigt "mitmproxy API unreachable" weil mitmweb 403 zurueckgibt (Auth-Problem). Ausserdem wird der Health-Tab zyklisch refreshed (alle 15s) — soll nur manuell per Button refreshen.
-3. **Headlamp-Links**: Format wurde auf `/c/main/{kind}/{ns}/{name}` geaendert — muss verifiziert werden ob das korrekt ist.
-4. **Traffic-Tab leer**: mitmproxy REST API gibt 403 — Auth mit empty-username Basic Auth funktioniert nicht. Muss mitmweb Auth-Mechanismus verifizieren (evtl. Session-Cookie statt Basic Auth).
-5. **Denied nach Freigabe leer**: Wenn "Freigeben" geklickt wird, wird die Domain zur ArgoCD-Whitelist hinzugefuegt. Danach ist der Denied-Tab leer weil der Squid-Pod restartet (neuer Pod = leere Logs). Fix: Squid-Logs persistent machen (PVC statt emptyDir) oder CC cached Denied-Eintraege in cc-state ConfigMap.
-6. **Whitelist-Add Feedback**: Nach "Freigeben" ist unklar ob die Aenderung produktiv wirksam ist. Fix: ArgoCD-Sync triggern + Status "Committed -> Syncing -> Active" anzeigen.
+### Gefixt in v1.0.9 (P1)
+1. **Build-Info**: Deployment-Template nutzt jetzt `build.number`/`build.date`/`build.commit` statt der leeren `controlcenter.buildNumber`/`buildDate`. Footer zeigt: `v1.0.9 | Build #X | abc12345 | 2026-03-19`.
+2. **Health-Tab Auth**: `health_check.py` nutzt jetzt `?token=PASSWORD` statt Basic Auth — identisch zur funktionierenden `mitmproxy_client.py`. Root Cause: mitmweb akzeptiert Token-Auth via Query-Parameter, NICHT Basic Auth.
+3. **Health-Tab Auto-Refresh entfernt**: Nur Whitelist/Denied/Traffic/Pods werden automatisch refreshed. Health nur manuell per Button.
+4. **Traffic-Tab**: War bereits funktional (Logs zeigten 200 OK mit Token-Auth). Kein Code-Fix noetig.
+5. **Whitelist Add/Remove Feedback**: Sync-Status-Indikator "Committed → Syncing → Active" in der UI. Pollt ArgoCD-Status bis Synced.
+6. **Denied-Tab Persistenz**: Client-seitiger Cache UND Server-seitiger Cache in `cc-state` ConfigMap. Eintraege ueberleben Squid-Restarts. Freigegebene Domains werden durchgestrichen markiert statt geloescht.
 
 ## Backlog (priorisiert)
 
-### P1 — Sofort-Fixes (v1.0.9)
-- [ ] BUILD_NUMBER/BUILD_DATE im controlcenter.yaml Deployment-Template als Env-Vars
-- [ ] Health-Tab: Kein Auto-Refresh, nur manueller Button
-- [ ] Health-Tab: mitmproxy-Auth fixen (mitmweb Auth-Mechanismus verifizieren!)
-- [ ] Traffic-Tab: Gleicher mitmproxy-Auth Fix
-- [ ] Whitelist Add/Remove: ArgoCD-Sync nach Aenderung triggern
-- [ ] Whitelist Add Feedback: Status-Anzeige "Committed -> Syncing -> Active"
-- [ ] Denied-Tab nach Freigabe: Eintraege nicht leeren, sondern "freigegeben" markieren
-
-### P2 — Persistente Denied-Logs
-- [ ] Squid access.log persistent machen: PVC (100Mi Longhorn) fuer /var/log/squid statt emptyDir
-- [ ] Oder: CC cached Denied-Eintraege in cc-state ConfigMap (einfacher, limitiert auf ~1000 Eintraege)
+### P2 — Persistente Denied-Logs (ERLEDIGT via cc-state)
+- [x] CC cached Denied-Eintraege in cc-state ConfigMap (limitiert auf ~1000 Eintraege)
+- [ ] Optional: Squid access.log persistent machen: PVC fuer /var/log/squid (noch nicht noetig)
 
 ### P3 — CI/CD Verbesserungen
 - [ ] Jenkins Shared Library: `repoName` Parameter hinzufuegen (aktuell: appname = Image-Name = Repo-Name, funktioniert nicht fuer Monorepos)
@@ -54,9 +46,10 @@ Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.8
 - [ ] ArgoCD openclaw App: Sync-Hook-Probleme loesen (Hooks blockieren bei jedem Sync)
 
 ### P6 — Weitere Features
-- [ ] Bypass-Modus: Zeitgesteuerte All-Domains-Freigabe implementieren (UI + Backend vorhanden, nicht getestet)
+- [ ] Bypass-Modus: Zeitgesteuerte All-Domains-Freigabe testen (UI + Backend vorhanden)
 - [ ] CC Paketmanager-Templates: Schnell-Freigabe fuer npm, pip, apt Domains
 - [ ] Favicons fuer CC + HelloWorld
+- [ ] Headlamp-Links: Format `/c/main/{kind}/{ns}/{name}` verifizieren
 
 ## Architektur-Hinweise fuer die naechste Session
 
@@ -64,6 +57,9 @@ Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.8
 - CC Gitea Token: ExternalSecret `cc-gitea-token` -> OpenBao `apps/claude/credentials` (key: `gitea-token`)
 - CC ArgoCD Token: ExternalSecret `cc-argocd-token` -> OpenBao `apps/claude/credentials` (key: `argocd-token`)
 - mitmweb Passwort: ExternalSecret `mitmweb-password` -> OpenBao `apps/openclaw-quarantine-gw/mitmweb-password`
+
+### mitmweb Auth-Mechanismus (Lesson Learned v1.0.9)
+mitmweb (alle aktuellen Versionen) verwendet `?token=PASSWORD` als Query-Parameter fuer API-Auth. Basic Auth (leerer Username) funktioniert NICHT. Das gilt fuer alle REST API Endpunkte (/flows, /events, etc.). Quelle: mitmproxy Source + CVE-2025-23217 Auth-Enforcement.
 
 ### CiliumNetworkPolicies
 CC hat eine eigene CNP `allow-controlcenter-egress` mit:
