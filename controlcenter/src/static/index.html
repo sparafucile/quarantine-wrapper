@@ -132,6 +132,7 @@ a.policy-link:hover { text-decoration: underline; }
           <option value="4xx">4xx Client Error</option>
           <option value="5xx">5xx Server Error</option>
           <option value="err">Fehler</option>
+          <option value="proxy">Proxy Error (squid denied)</option>
         </select>
         <input type="text" id="traffic-host-filter" placeholder="Host filtern..." style="width:200px" oninput="renderTraffic()">
       </div>
@@ -308,6 +309,7 @@ function renderTraffic() {
     if (statusFilter === '4xx' && (f.status_code < 400 || f.status_code >= 500)) return false;
     if (statusFilter === '5xx' && (f.status_code < 500 || f.status_code >= 600)) return false;
     if (statusFilter === 'err' && !f.error && f.status_code > 0) return false;
+    if (statusFilter === 'proxy' && !(f.error && f.error.toLowerCase().includes('proxy'))) return false;
     return true;
   });
 
