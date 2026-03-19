@@ -22,7 +22,7 @@ async def get_flows(limit: int = 100) -> list[dict]:
             resp = await client.get(url, params=params, headers=headers)
             if resp.status_code == 401 or resp.status_code == 403:
                 # Try basic auth as fallback
-                auth = httpx.BasicAuth(username="admin", password=config.MITMPROXY_PASSWORD)
+                auth = httpx.BasicAuth(username="", password=config.MITMPROXY_PASSWORD)
                 resp = await client.get(url, auth=auth)
             resp.raise_for_status()
             flows = resp.json()
