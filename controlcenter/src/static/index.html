@@ -563,7 +563,9 @@ async function refreshHealth() {
   const hop = (name, result) => {
     if (!result) return `<div class="hop"><strong>${name}</strong><br><span style="color:var(--muted)">nicht geprueft</span></div>`;
     const cls = result.ok ? 'ok' : 'fail';
-    const detail = result.ok ? (result.ms ? result.ms+'ms' : (result.status ? 'HTTP '+result.status : 'OK')) : (result.error || 'Fehler');
+    let detail = result.ok ? (result.ms !== undefined ? result.ms+'ms' : 'OK') : (result.error || 'Fehler');
+    if (result.flows !== undefined) detail += ` (${result.flows} flows)`;
+    if (result.detail) detail = result.detail;
     return `<div class="hop ${cls}"><strong>${name}</strong><br>${result.ok ? '\u2713' : '\u2717'} ${esc(String(detail))}</div>`;
   };
   document.getElementById('health-display').innerHTML = `
