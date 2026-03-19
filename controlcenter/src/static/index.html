@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quarantine ControlCenter</title>
 <style>
-:root { --bg: #0f172a; --card: #1e293b; --border: #334155; --accent: #3b82f6; --danger: #ef4444; --warn: #f59e0b; --ok: #22c55e; --text: #e2e8f0; --muted: #94a3b8; --input-bg: #0f172a; }
+:root { --bg: #0f172a; --card: #1e293b; --border: #334155; --accent: #3b82f6; --danger: #ef4444; --warn: #f59e0b; --ok: #22c55e; --succeeded: #6366f1; --text: #e2e8f0; --muted: #94a3b8; --input-bg: #0f172a; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
 .container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
@@ -22,13 +22,17 @@ header h1 span { color: var(--accent); }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
 .card h2 { font-size: 1.1rem; margin-bottom: 0.75rem; }
 table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-th { text-align: left; padding: 0.5rem; border-bottom: 2px solid var(--border); color: var(--muted); font-weight: 600; }
+th { text-align: left; padding: 0.5rem; border-bottom: 2px solid var(--border); color: var(--muted); font-weight: 600; cursor: pointer; user-select: none; }
+th:hover { color: var(--text); }
+th.sorted-asc::after { content: ' \u25B2'; font-size: 0.7rem; }
+th.sorted-desc::after { content: ' \u25BC'; font-size: 0.7rem; }
 td { padding: 0.5rem; border-bottom: 1px solid var(--border); }
 tr:hover { background: rgba(59,130,246,0.05); }
 .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
 .badge-ok { background: rgba(34,197,94,0.15); color: var(--ok); }
 .badge-warn { background: rgba(245,158,11,0.15); color: var(--warn); }
 .badge-error { background: rgba(239,68,68,0.15); color: var(--danger); }
+.badge-succeeded { background: rgba(99,102,241,0.15); color: var(--succeeded); }
 .badge-info { background: rgba(59,130,246,0.15); color: var(--accent); }
 input[type="text"] { background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem; width: 300px; }
 input[type="text"]:focus { outline: none; border-color: var(--accent); }
@@ -40,16 +44,17 @@ button:hover { opacity: 0.85; }
 .btn-warn { background: var(--warn); color: #1a1a2e; }
 .btn-ok { background: var(--ok); color: #1a1a2e; }
 .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; }
-.inline-form { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
-.status-bar { display: flex; gap: 1rem; align-items: center; padding: 0.5rem 0; font-size: 0.85rem; }
+.inline-form { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
 .bypass-banner { background: rgba(239,68,68,0.15); border: 1px solid var(--danger); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; display: none; }
 .bypass-banner.active { display: flex; justify-content: space-between; align-items: center; }
-.health-chain { display: flex; gap: 0.5rem; align-items: center; font-size: 0.9rem; }
+.health-chain { display: flex; gap: 0.5rem; align-items: center; font-size: 0.9rem; flex-wrap: wrap; }
 .health-chain .hop { padding: 0.5rem 1rem; border-radius: 6px; background: var(--card); border: 1px solid var(--border); }
 .health-chain .arrow { color: var(--muted); }
 .health-chain .hop.ok { border-color: var(--ok); }
 .health-chain .hop.fail { border-color: var(--danger); }
 .ns-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+a.policy-link { color: var(--accent); text-decoration: none; }
+a.policy-link:hover { text-decoration: underline; }
 @media (max-width: 768px) { .ns-grid { grid-template-columns: 1fr; } input[type="text"] { width: 100%; } }
 .loading { color: var(--muted); font-style: italic; }
 .footer { text-align: center; padding: 1rem 0; font-size: 0.7rem; color: var(--muted); border-top: 1px solid var(--border); margin-top: 2rem; }
@@ -79,7 +84,7 @@ button:hover { opacity: 0.85; }
     <div class="tab" onclick="showTab('health')">Health</div>
   </div>
 
-  <!-- WHITELIST TAB -->
+  <!-- WHITELIST -->
   <div class="panel active" id="panel-whitelist">
     <div class="card">
       <h2>Squid Domain-Whitelist</h2>
@@ -104,7 +109,7 @@ button:hover { opacity: 0.85; }
     </div>
   </div>
 
-  <!-- DENIED TAB -->
+  <!-- DENIED -->
   <div class="panel" id="panel-denied">
     <div class="card">
       <h2>Von Squid abgelehnte Domains</h2>
@@ -115,18 +120,36 @@ button:hover { opacity: 0.85; }
     </div>
   </div>
 
-  <!-- TRAFFIC TAB -->
+  <!-- TRAFFIC -->
   <div class="panel" id="panel-traffic">
     <div class="card">
       <h2>mitmproxy Traffic</h2>
-      <table>
-        <thead><tr><th>Zeit</th><th>Methode</th><th>Host</th><th>Pfad</th><th>Status</th><th>Groesse</th></tr></thead>
+      <div class="inline-form">
+        <select id="traffic-status-filter" onchange="renderTraffic()">
+          <option value="">Alle Status</option>
+          <option value="2xx">2xx OK</option>
+          <option value="3xx">3xx Redirect</option>
+          <option value="4xx">4xx Client Error</option>
+          <option value="5xx">5xx Server Error</option>
+          <option value="err">Fehler</option>
+        </select>
+        <input type="text" id="traffic-host-filter" placeholder="Host filtern..." style="width:200px" oninput="renderTraffic()">
+      </div>
+      <table id="traffic-table">
+        <thead><tr>
+          <th data-sort="timestamp" onclick="sortTraffic('timestamp')">Zeit</th>
+          <th data-sort="method" onclick="sortTraffic('method')">Methode</th>
+          <th data-sort="host" onclick="sortTraffic('host')">Host</th>
+          <th data-sort="path" onclick="sortTraffic('path')">Pfad</th>
+          <th data-sort="status_code" onclick="sortTraffic('status_code')">Status</th>
+          <th data-sort="size" onclick="sortTraffic('size')">Groesse</th>
+        </tr></thead>
         <tbody id="traffic-body"><tr><td colspan="6" class="loading">Lade...</td></tr></tbody>
       </table>
     </div>
   </div>
 
-  <!-- PODS TAB -->
+  <!-- PODS -->
   <div class="panel" id="panel-pods">
     <div class="ns-grid" id="pods-grid">
       <div class="card"><h2>App-Namespace</h2><div class="loading">Lade...</div></div>
@@ -134,14 +157,14 @@ button:hover { opacity: 0.85; }
     </div>
   </div>
 
-  <!-- POLICIES TAB -->
+  <!-- POLICIES -->
   <div class="panel" id="panel-policies">
     <div class="ns-grid" id="policies-grid">
       <div class="card"><h2>Policies</h2><div class="loading">Lade...</div></div>
     </div>
   </div>
 
-  <!-- HEALTH TAB -->
+  <!-- HEALTH -->
   <div class="panel" id="panel-health">
     <div class="card">
       <h2>Proxy-Chain Health</h2>
@@ -155,10 +178,13 @@ button:hover { opacity: 0.85; }
 
 <script>
 const API = '';
+const HEADLAMP = 'https://p-headlamp-k8s.sparafucile.net';
 let currentTab = 'whitelist';
+let trafficData = [];
+let trafficSort = {col: 'timestamp', dir: 'desc'};
 
 function showTab(name) {
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', t.textContent.toLowerCase().replace(/\s/g,'') === name || (name==='whitelist' && i===0)));
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', t.textContent.toLowerCase().replace(/\s/g,'') === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-'+name));
   currentTab = name;
   refreshTab(name);
@@ -181,17 +207,17 @@ async function refreshTab(tab) {
   } catch(e) { console.error(e); }
 }
 
+// --- Whitelist ---
 async function refreshWhitelist() {
   const data = await api('/api/config');
   const tbody = document.getElementById('whitelist-body');
-  if (!data.whitelist.length) {
+  if (!data.whitelist || !data.whitelist.length) {
     tbody.innerHTML = '<tr><td colspan="2" style="color:var(--muted)">Keine Domains konfiguriert (alle erlaubt)</td></tr>';
     return;
   }
   tbody.innerHTML = data.whitelist.map(d =>
-    `<tr><td><code>${d}</code></td><td><button class="btn-danger btn-sm" onclick="removeDomain('${d}')">Entfernen</button></td></tr>`
+    `<tr><td><code>${esc(d)}</code></td><td><button class="btn-danger btn-sm" onclick="removeDomain('${esc(d)}')">Entfernen</button></td></tr>`
   ).join('');
-  // Update bypass banner
   if (data.bypass && data.bypass.active) {
     document.getElementById('bypass-banner').classList.add('active');
     updateBypassTimer(data.bypass.expires_at);
@@ -231,10 +257,7 @@ async function activateBypass() {
 }
 
 async function deactivateBypass() {
-  try {
-    await api('/api/bypass/deactivate', {method:'POST'});
-    await refreshWhitelist();
-  } catch(e) { alert('Fehler: '+e.message); }
+  try { await api('/api/bypass/deactivate', {method:'POST'}); await refreshWhitelist(); } catch(e) { alert('Fehler: '+e.message); }
 }
 
 function updateBypassTimer(expiresAt) {
@@ -249,6 +272,7 @@ function updateBypassTimer(expiresAt) {
   update();
 }
 
+// --- Denied ---
 async function refreshDenied() {
   const data = await api('/api/squid/denied');
   const tbody = document.getElementById('denied-body');
@@ -257,34 +281,78 @@ async function refreshDenied() {
     return;
   }
   tbody.innerHTML = data.denied.slice(-100).reverse().map(d =>
-    `<tr><td style="font-size:0.75rem">${d.timestamp}</td><td><code>${d.domain}</code></td><td style="font-size:0.75rem">${d.client}</td><td>${d.method}</td><td><button class="btn-ok btn-sm" onclick="addDomainDirect('${d.domain}')">Freigeben</button></td></tr>`
+    `<tr><td style="font-size:0.75rem">${esc(d.timestamp)}</td><td><code>${esc(d.domain)}</code></td><td style="font-size:0.75rem">${esc(d.client)}</td><td>${esc(d.method)}</td><td><button class="btn-ok btn-sm" onclick="addDomainDirect('${esc(d.domain)}')">Freigeben</button></td></tr>`
   ).join('');
 }
 
 async function addDomainDirect(domain) {
-  try {
-    await api('/api/whitelist/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
-    await refreshDenied();
-  } catch(e) { alert('Fehler: '+e.message); }
+  try { await api('/api/whitelist/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})}); await refreshDenied(); } catch(e) { alert('Fehler: '+e.message); }
 }
 
+// --- Traffic (sortable + filterable) ---
 async function refreshTraffic() {
   const data = await api('/api/traffic');
+  trafficData = data.flows || [];
+  renderTraffic();
+}
+
+function renderTraffic() {
   const tbody = document.getElementById('traffic-body');
-  if (!data.flows.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">Keine Traffic-Daten verfuegbar</td></tr>';
+  const statusFilter = document.getElementById('traffic-status-filter').value;
+  const hostFilter = document.getElementById('traffic-host-filter').value.toLowerCase();
+
+  let filtered = trafficData.filter(f => {
+    if (hostFilter && !f.host.toLowerCase().includes(hostFilter)) return false;
+    if (statusFilter === '2xx' && (f.status_code < 200 || f.status_code >= 300)) return false;
+    if (statusFilter === '3xx' && (f.status_code < 300 || f.status_code >= 400)) return false;
+    if (statusFilter === '4xx' && (f.status_code < 400 || f.status_code >= 500)) return false;
+    if (statusFilter === '5xx' && (f.status_code < 500 || f.status_code >= 600)) return false;
+    if (statusFilter === 'err' && !f.error && f.status_code > 0) return false;
+    return true;
+  });
+
+  // Sort
+  const col = trafficSort.col;
+  const dir = trafficSort.dir === 'asc' ? 1 : -1;
+  filtered.sort((a, b) => {
+    let va = a[col] || '', vb = b[col] || '';
+    if (typeof va === 'number') return (va - vb) * dir;
+    return String(va).localeCompare(String(vb)) * dir;
+  });
+
+  // Update sort indicators
+  document.querySelectorAll('#traffic-table th').forEach(th => {
+    th.classList.remove('sorted-asc', 'sorted-desc');
+    if (th.dataset.sort === col) th.classList.add(trafficSort.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+  });
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">Keine Traffic-Daten (Filter aktiv?)</td></tr>';
     return;
   }
-  tbody.innerHTML = data.flows.slice(-100).reverse().map(f => {
+
+  tbody.innerHTML = filtered.slice(-200).map(f => {
     const t = f.timestamp ? new Date(f.timestamp*1000).toLocaleTimeString('de') : '-';
-    const status = f.error ? `<span class="badge badge-error">${f.error.substring(0,30)}</span>` :
+    const status = f.error ? `<span class="badge badge-error">${esc(String(f.error).substring(0,30))}</span>` :
+                   f.status_code >= 500 ? `<span class="badge badge-error">${f.status_code}</span>` :
                    f.status_code >= 400 ? `<span class="badge badge-warn">${f.status_code}</span>` :
+                   f.status_code >= 300 ? `<span class="badge badge-info">${f.status_code}</span>` :
                    `<span class="badge badge-ok">${f.status_code}</span>`;
-    const size = f.size > 1024 ? `${(f.size/1024).toFixed(1)}KB` : `${f.size}B`;
-    return `<tr><td style="font-size:0.75rem">${t}</td><td>${f.method}</td><td><code>${f.host}</code></td><td style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">${f.path}</td><td>${status}</td><td>${size}</td></tr>`;
+    const size = f.size > 1048576 ? `${(f.size/1048576).toFixed(1)}MB` : f.size > 1024 ? `${(f.size/1024).toFixed(1)}KB` : `${f.size}B`;
+    return `<tr><td style="font-size:0.75rem">${t}</td><td>${esc(f.method)}</td><td><code>${esc(f.host)}</code></td><td style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.path)}</td><td>${status}</td><td>${size}</td></tr>`;
   }).join('');
 }
 
+function sortTraffic(col) {
+  if (trafficSort.col === col) {
+    trafficSort.dir = trafficSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    trafficSort = {col, dir: 'asc'};
+  }
+  renderTraffic();
+}
+
+// --- Pods (correct status colors) ---
 async function refreshPods() {
   const data = await api('/api/pods');
   const grid = document.getElementById('pods-grid');
@@ -293,71 +361,84 @@ async function refreshPods() {
     {ns: data.gw_namespace, pods: data.gw_pods}
   ].map(({ns, pods}) => `
     <div class="card">
-      <h2>${ns}</h2>
+      <h2>${esc(ns)}</h2>
       <table><thead><tr><th>Pod</th><th>Status</th><th>Restarts</th><th>Image</th></tr></thead><tbody>
       ${pods.map(p => {
-        const badge = p.phase==='Running' ? 'badge-ok' : p.phase==='Pending' ? 'badge-warn' : 'badge-error';
+        const badge = p.phase==='Running' ? 'badge-ok' :
+                      p.phase==='Succeeded' ? 'badge-succeeded' :
+                      p.phase==='Pending' ? 'badge-warn' : 'badge-error';
         const restarts = p.containers.reduce((s,c) => s+c.restarts, 0);
         const img = p.containers[0] ? p.containers[0].image.split('/').pop().split('@')[0] : '-';
-        return `<tr><td style="font-size:0.8rem">${p.name}</td><td><span class="badge ${badge}">${p.phase}</span></td><td>${restarts}</td><td style="font-size:0.75rem"><code>${img}</code></td></tr>`;
+        return `<tr><td style="font-size:0.8rem">${esc(p.name)}</td><td><span class="badge ${badge}">${esc(p.phase)}</span></td><td>${restarts}</td><td style="font-size:0.75rem"><code>${esc(img)}</code></td></tr>`;
       }).join('')}
       </tbody></table>
     </div>`
   ).join('');
 }
 
+// --- Policies (with Headlamp links) ---
 async function refreshPolicies() {
   const data = await api('/api/policies');
   const grid = document.getElementById('policies-grid');
-  grid.innerHTML = Object.entries(data).map(([ns, p]) => `
+  grid.innerHTML = Object.entries(data).map(([ns, p]) => {
+    const hlNP = (name) => `${HEADLAMP}/#/networkpolicies/${ns}/${name}`;
+    const hlCNP = (name) => `${HEADLAMP}/#/ciliumnetworkpolicies/${ns}/${name}`;
+    return `
     <div class="card">
-      <h2>${ns}</h2>
-      <h3 style="font-size:0.85rem;color:var(--muted);margin:0.5rem 0">NetworkPolicies</h3>
+      <h2>${esc(ns)}</h2>
+      <h3 style="font-size:0.85rem;color:var(--muted);margin:0.5rem 0">NetworkPolicies (${p.networkPolicies.length})</h3>
       <table><thead><tr><th>Name</th><th>Typ</th></tr></thead><tbody>
-      ${p.networkPolicies.map(pol => `<tr><td><code>${pol.name}</code></td><td>${pol.policyTypes.join(', ')}</td></tr>`).join('')}
+      ${p.networkPolicies.map(pol => `<tr><td><a href="${hlNP(pol.name)}" target="_blank" class="policy-link"><code>${esc(pol.name)}</code></a></td><td>${pol.policyTypes.join(', ')}</td></tr>`).join('')}
       </tbody></table>
       ${p.ciliumPolicies.length ? `
-      <h3 style="font-size:0.85rem;color:var(--accent);margin:0.5rem 0">CiliumNetworkPolicies</h3>
+      <h3 style="font-size:0.85rem;color:var(--accent);margin:0.5rem 0">CiliumNetworkPolicies (${p.ciliumPolicies.length})</h3>
       <table><thead><tr><th>Name</th></tr></thead><tbody>
-      ${p.ciliumPolicies.map(pol => `<tr><td><code>${pol.name}</code></td></tr>`).join('')}
+      ${p.ciliumPolicies.map(pol => `<tr><td><a href="${hlCNP(pol.name)}" target="_blank" class="policy-link"><code>${esc(pol.name)}</code></a></td></tr>`).join('')}
       </tbody></table>` : ''}
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
 }
 
+// --- Health ---
 async function refreshHealth() {
   document.getElementById('health-display').innerHTML = '<span class="loading">Pruefe Proxy-Chain...</span>';
   const data = await api('/api/health');
   const hop = (name, result) => {
     if (!result) return `<div class="hop"><strong>${name}</strong><br><span style="color:var(--muted)">nicht geprueft</span></div>`;
     const cls = result.ok ? 'ok' : 'fail';
-    const detail = result.ok ? (result.ms ? result.ms+'ms' : (result.status ? 'HTTP '+result.status : 'OK')) : result.error;
-    return `<div class="hop ${cls}"><strong>${name}</strong><br>${result.ok ? '&#10003;' : '&#10007;'} ${detail}</div>`;
+    const detail = result.ok ? (result.ms ? result.ms+'ms' : (result.status ? 'HTTP '+result.status : 'OK')) : (result.error || 'Fehler');
+    return `<div class="hop ${cls}"><strong>${name}</strong><br>${result.ok ? '\u2713' : '\u2717'} ${esc(String(detail))}</div>`;
   };
   document.getElementById('health-display').innerHTML = `
     <div class="health-chain">
       ${hop('mitmproxy', data.mitmproxy)}
-      <span class="arrow">&#8594;</span>
+      <span class="arrow">\u2192</span>
       ${hop('Squid', data.squid)}
-      <span class="arrow">&#8594;</span>
+      <span class="arrow">\u2192</span>
       ${hop('Internet', data.internet)}
     </div>
     ${data.total_ms ? `<p style="margin-top:0.75rem;color:var(--muted)">Gesamtlatenz: ${data.total_ms}ms</p>` : ''}
   `;
 }
 
+// --- Info + ArgoCD ---
 async function refreshInfo() {
   try {
     const info = await api('/api/info');
     document.getElementById('app-name').textContent = `${info.app_name} | ${info.app_namespace}`;
-    document.getElementById('footer').textContent = `Quarantine ControlCenter v${info.version} | Build #${info.build_number} | ${info.build_date || 'dev'}`;
+    const build = info.build_number && info.build_number !== 'dev' ? `Build #${info.build_number}` : '';
+    const date = info.build_date || '';
+    const parts = [`Quarantine ControlCenter v${info.version}`, build, date].filter(Boolean);
+    document.getElementById('footer').textContent = parts.join(' | ');
   } catch(e) {}
   try {
     const argo = await api('/api/argocd/status');
     const cls = argo.sync==='Synced' ? 'badge-ok' : 'badge-warn';
-    document.getElementById('argocd-status').innerHTML = `ArgoCD: <span class="badge ${cls}">${argo.sync}</span> ${argo.revision}`;
+    document.getElementById('argocd-status').innerHTML = `ArgoCD: <span class="badge ${cls}">${esc(argo.sync)}</span> ${esc(argo.revision)}`;
   } catch(e) {}
 }
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 // Init
 refreshInfo();
