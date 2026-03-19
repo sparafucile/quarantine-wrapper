@@ -86,7 +86,7 @@ async def add_to_whitelist(action: DomainAction):
         raise HTTPException(400, "Domain required")
 
     try:
-        result = await gitea_client.add_domain_to_argocd(domain)
+        result = await gitea_client.add_domain_to_whitelist(domain)
         if result["status"] == "exists":
             return {"status": "exists", "domain": domain}
 
@@ -103,7 +103,7 @@ async def remove_from_whitelist(action: DomainAction):
     """Remove domain from Squid whitelist via ArgoCD."""
     domain = action.domain.strip().lower()
     try:
-        result = await gitea_client.remove_domain_from_argocd(domain)
+        result = await gitea_client.remove_domain_from_whitelist(domain)
         if result["status"] == "not_found":
             return {"status": "not_found", "domain": domain}
 
