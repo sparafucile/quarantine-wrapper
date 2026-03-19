@@ -381,8 +381,8 @@ async function refreshPolicies() {
   const data = await api('/api/policies');
   const grid = document.getElementById('policies-grid');
   grid.innerHTML = Object.entries(data).map(([ns, p]) => {
-    const hlNP = (name) => `${HEADLAMP}/#/networkpolicies/${ns}/${name}`;
-    const hlCNP = (name) => `${HEADLAMP}/#/ciliumnetworkpolicies/${ns}/${name}`;
+    const hlNP = (name) => `${HEADLAMP}/c/main/networkpolicies/${ns}/${name}`;
+    const hlCNP = (name) => `${HEADLAMP}/c/main/customresources/cilium.io/v2/CiliumNetworkPolicy/${ns}/${name}`;
     return `
     <div class="card">
       <h2>${esc(ns)}</h2>
