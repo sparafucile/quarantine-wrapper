@@ -1,41 +1,54 @@
 # Quarantine ControlCenter — Backlog
 
-Stand: Session 200 (2026-03-19), CC v1.0.9 in Arbeit.
+Stand: Session 200 (2026-03-19), CC v1.0.10 deployed.
 
 ## Aktueller Stand
 
-CC v1.0.9 deployed im `openclaw-quarantine-gw` Namespace.
+CC v1.0.10 deployed im `openclaw-quarantine-gw` Namespace.
 URL: https://p-openclaw-quarantine-cc-k8s.sparafucile.net (hinter Authentik)
-Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.9`
+Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.10`
 
 ### Funktioniert
-- Whitelist-Tab: Zeigt Domains aus ArgoCD inline values, Add/Remove mit Sync-Status-Feedback
-- Denied-Tab: Zeigt Squid TCP_DENIED Eintraege, persistent gecached (cc-state ConfigMap)
-- Traffic-Tab: Sortierbar + filterbar (Status, Host), mitmproxy Auth via ?token= funktioniert
-- Pods-Tab: Zeigt Pods beider Namespaces mit korrekten Farben (Running=gruen, Succeeded=lila)
-- Policies-Tab: NetworkPolicies + CiliumNetworkPolicies beider Namespaces
+- Whitelist-Tab: Domains aus ArgoCD inline values, Add/Remove mit Sync-Status-Feedback (Committed -> Syncing -> Active)
+- Denied-Tab: Squid TCP_DENIED Eintraege, persistent gecached (cc-state ConfigMap), Freigabe markiert durchgestrichen
+- Traffic-Tab: Sortierbar + filterbar, mitmproxy Auth via ?token=, mitmweb Deep-Links (/#/flows/{id}/request)
+- Pods-Tab: Pods beider Namespaces mit Headlamp-Links, Klartext-Image-Namen (spec statt digest)
+- Policies-Tab: NetworkPolicies + CiliumNetworkPolicies mit Headlamp-Links
+- Health-Tab: Proxy-Chain-Check (mitmproxy -> Squid -> Internet), nur manuell per Button
 - ArgoCD-Status im Header (Synced/Revision)
 - Build-Info im Footer: Version | Build# | Commit-Hash | Datum
-- Health-Tab: Proxy-Chain-Check nur manuell per Button (kein Auto-Refresh)
+- CC Egress: Port 8080 (Proxy) + 8081 (Web-UI) in NetworkPolicy + CiliumNetworkPolicy
 
-### Gefixt in v1.0.9 (P1)
-1. **Build-Info**: Deployment-Template nutzt jetzt `build.number`/`build.date`/`build.commit` statt der leeren `controlcenter.buildNumber`/`buildDate`. Footer zeigt: `v1.0.9 | Build #X | abc12345 | 2026-03-19`.
-2. **Health-Tab Auth**: `health_check.py` nutzt jetzt `?token=PASSWORD` statt Basic Auth — identisch zur funktionierenden `mitmproxy_client.py`. Root Cause: mitmweb akzeptiert Token-Auth via Query-Parameter, NICHT Basic Auth.
-3. **Health-Tab Auto-Refresh entfernt**: Nur Whitelist/Denied/Traffic/Pods werden automatisch refreshed. Health nur manuell per Button.
-4. **Traffic-Tab**: War bereits funktional (Logs zeigten 200 OK mit Token-Auth). Kein Code-Fix noetig.
-5. **Whitelist Add/Remove Feedback**: Sync-Status-Indikator "Committed → Syncing → Active" in der UI. Pollt ArgoCD-Status bis Synced.
-6. **Denied-Tab Persistenz**: Client-seitiger Cache UND Server-seitiger Cache in `cc-state` ConfigMap. Eintraege ueberleben Squid-Restarts. Freigegebene Domains werden durchgestrichen markiert statt geloescht.
+### Erledigt in Session 200
 
-## Backlog (priorisiert)
+**P1 — Sofort-Fixes:**
+- [x] BUILD_NUMBER/BUILD_DATE/BUILD_COMMIT via build.* Values (Jenkins Stage 2 schreibt sie)
+- [x] Health-Tab: Token-Auth statt Basic Auth (?token= Query-Parameter)
+- [x] Health-Tab: Auto-Refresh entfernt, nur manueller Button
+- [x] Traffic-Tab: Auth funktionierte bereits (Token-Auth in mitmproxy_client.py)
+- [x] Whitelist Add/Remove: ArgoCD-Sync + Status-Feedback (Committed -> Syncing -> Active)
+- [x] Denied-Tab: Persistent Cache in cc-state ConfigMap + Client-Side Cache
+- [x] CC Egress NetworkPolicy: Port 8080 fuer Proxy-Chain Health-Check
 
-### P2 — Persistente Denied-Logs (ERLEDIGT via cc-state)
+**P2 — Persistente Denied-Logs:**
 - [x] CC cached Denied-Eintraege in cc-state ConfigMap (limitiert auf ~1000 Eintraege)
-- [ ] Optional: Squid access.log persistent machen: PVC fuer /var/log/squid (noch nicht noetig)
 
-### P3 — CI/CD Verbesserungen
-- [ ] Jenkins Shared Library: `repoName` Parameter hinzufuegen (aktuell: appname = Image-Name = Repo-Name, funktioniert nicht fuer Monorepos)
-- [ ] Jenkinsfile im Wrapper: Stage 2 (Tag-Update) ueberspringen oder auf korrektes Repo zeigen
-- [ ] Automatisches Image-Tag-Update in values.yaml nach Jenkins-Build
+**P3 — CI/CD Verbesserungen:**
+- [x] Jenkins Shared Library: `repoName` Parameter (Monorepo-Support)
+- [x] Stage 2: build.number/date/commit Pattern (neben Legacy BUILD_NUMBER/BUILD_DATE)
+- [x] Chart nach /chart migriert (konsistent mit allen k8s-apps Repos)
+- [x] ArgoCD-App-Path: . -> chart
+
+**Bonus:**
+- [x] Headlamp-Links in Pods-Tab (Pods + Namespaces)
+- [x] mitmweb Deep-Links in Traffic-Tab (/#/flows/{id}/request)
+- [x] Pod-Image-Anzeige: spec.containers statt status.containerStatuses (Klartext statt Digest)
+- [x] MITMWEB_URL Env-Var aus Helm-Template
+
+## Offenes Backlog (priorisiert)
+
+### P3 — CI/CD (verbleibend)
+- [ ] Automatisches Image-Tag-Update: Stage 2 soll CC-Image-Tag in values.yaml aktualisieren (funktioniert technisch, aber GIT_PREVIOUS_SUCCESSFUL_COMMIT Race Condition verhindert manchmal den Build-Trigger)
 
 ### P4 — Authentik-Integration
 - [ ] authentik-setup Script: GW-Namespace nach Services mit `quarantine.sparafucile.net/authentik` Label scannen (aktuell wird CC-Provider manuell erstellt)
@@ -49,25 +62,32 @@ Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.9
 - [ ] Bypass-Modus: Zeitgesteuerte All-Domains-Freigabe testen (UI + Backend vorhanden)
 - [ ] CC Paketmanager-Templates: Schnell-Freigabe fuer npm, pip, apt Domains
 - [ ] Favicons fuer CC + HelloWorld
-- [ ] Headlamp-Links: Format `/c/main/{kind}/{ns}/{name}` verifizieren
+- [ ] Squid access.log persistent machen: PVC fuer /var/log/squid (optional, cc-state reicht aktuell)
+- [ ] Traffic-Tab: Auto-Refresh Intervall konfigurierbar machen
+- [ ] Denied-Tab: "Alle Freigeben" Button fuer Batch-Whitelist
 
-## Architektur-Hinweise fuer die naechste Session
+## Architektur-Hinweise
 
 ### Tokens/Secrets
 - CC Gitea Token: ExternalSecret `cc-gitea-token` -> OpenBao `apps/claude/credentials` (key: `gitea-token`)
 - CC ArgoCD Token: ExternalSecret `cc-argocd-token` -> OpenBao `apps/claude/credentials` (key: `argocd-token`)
 - mitmweb Passwort: ExternalSecret `mitmweb-password` -> OpenBao `apps/openclaw-quarantine-gw/mitmweb-password`
 
-### mitmweb Auth-Mechanismus (Lesson Learned v1.0.9)
+### mitmweb Auth-Mechanismus
 mitmweb (alle aktuellen Versionen) verwendet `?token=PASSWORD` als Query-Parameter fuer API-Auth. Basic Auth (leerer Username) funktioniert NICHT. Das gilt fuer alle REST API Endpunkte (/flows, /events, etc.). Quelle: mitmproxy Source + CVE-2025-23217 Auth-Enforcement.
 
 ### CiliumNetworkPolicies
 CC hat eine eigene CNP `allow-controlcenter-egress` mit:
 - toEntities: kube-apiserver
 - toCIDR: serviceCIDR (10.32.0.0/12) Port 443
-- toEndpoints: mitmproxy:8081 (API)
+- toEndpoints: mitmproxy:8081 (Web-UI) + mitmproxy:8080 (Proxy, fuer Health-Check)
 - toCIDR: 0.0.0.0/0 Port 443 (Gitea, ArgoCD)
 - DNS zu kube-dns
+
+### CI/CD
+- Jenkinsfile: `appname: 'quarantine-controlcenter'`, `repoName: 'quarantine-wrapper'`, `dockerpath: 'controlcenter'`
+- Stage 2 schreibt `build.number`, `build.date`, `build.commit` in `chart/values.yaml`
+- Deployment-Template liest `build.*` Values und setzt BUILD_NUMBER/BUILD_DATE/BUILD_COMMIT Env-Vars
 
 ### Bekannte Cilium-Probleme
 - K8s NetworkPolicies mit ipBlock:serviceCIDR funktionieren bei Cilium NICHT fuer Egress (DNAT-Problem)
