@@ -65,7 +65,7 @@ async def _read_gitea_file(path: str) -> str:
 
 
 def _parse_whitelist_yaml(content: str) -> list[str]:
-    """Extract squidAllowedDomains from YAML content (simple parser)."""
+    """Extract squidAllowedDomains from YAML content."""
     domains = []
     in_section = False
     for line in content.split("\n"):
@@ -75,7 +75,12 @@ def _parse_whitelist_yaml(content: str) -> list[str]:
             continue
         if in_section:
             if stripped.startswith("- "):
-                domain = stripped[2:].strip().strip(\"\'\").strip("\'")
+                domain = stripped[2:].strip()
+                # Strip surrounding quotes
+                if len(domain) >= 2:
+                    if (domain[0] == domain[-1]) and domain[0] in ('"', "'"):
+                        domain = domain[1:-1]
+                # Remove inline comments
                 if "#" in domain:
                     domain = domain.split("#")[0].strip()
                 if domain:
@@ -83,7 +88,6 @@ def _parse_whitelist_yaml(content: str) -> list[str]:
             elif stripped and not stripped.startswith("#"):
                 break
     return domains
-
 
 async def add_domain_to_whitelist(domain: str) -> dict:
     """Add a domain to the whitelist via ArgoCD Helm parameters."""
