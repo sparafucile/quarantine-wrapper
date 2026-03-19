@@ -170,11 +170,13 @@ spec:
             secretKeyRef:
               name: cc-gitea-token
               key: token
+              optional: true
         - name: ARGOCD_TOKEN
           valueFrom:
             secretKeyRef:
               name: cc-argocd-token
               key: token
+              optional: true
         {{- if .Values.mitmproxy.enabled }}
         - name: MITMPROXY_PASSWORD
           valueFrom:
