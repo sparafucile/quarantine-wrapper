@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quarantine ControlCenter</title>
+<style>
+:root { --bg: #0f172a; --card: #1e293b; --border: #334155; --accent: #3b82f6; --danger: #ef4444; --warn: #f59e0b; --ok: #22c55e; --text: #e2e8f0; --muted: #94a3b8; --input-bg: #0f172a; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+.container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 0; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+header h1 { font-size: 1.4rem; font-weight: 700; }
+header h1 span { color: var(--accent); }
+.header-info { font-size: 0.75rem; color: var(--muted); text-align: right; }
+.tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.tab { padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 0.85rem; background: var(--card); color: var(--muted); transition: all 0.15s; }
+.tab:hover { border-color: var(--accent); color: var(--text); }
+.tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+.panel { display: none; }
+.panel.active { display: block; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.card h2 { font-size: 1.1rem; margin-bottom: 0.75rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th { text-align: left; padding: 0.5rem; border-bottom: 2px solid var(--border); color: var(--muted); font-weight: 600; }
+td { padding: 0.5rem; border-bottom: 1px solid var(--border); }
+tr:hover { background: rgba(59,130,246,0.05); }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+.badge-ok { background: rgba(34,197,94,0.15); color: var(--ok); }
+.badge-warn { background: rgba(245,158,11,0.15); color: var(--warn); }
+.badge-error { background: rgba(239,68,68,0.15); color: var(--danger); }
+.badge-info { background: rgba(59,130,246,0.15); color: var(--accent); }
+input[type="text"] { background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem; width: 300px; }
+input[type="text"]:focus { outline: none; border-color: var(--accent); }
+select { background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem; border-radius: 6px; font-size: 0.85rem; }
+button { padding: 0.5rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: opacity 0.15s; }
+button:hover { opacity: 0.85; }
+.btn-primary { background: var(--accent); color: white; }
+.btn-danger { background: var(--danger); color: white; }
+.btn-warn { background: var(--warn); color: #1a1a2e; }
+.btn-ok { background: var(--ok); color: #1a1a2e; }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; }
+.inline-form { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+.status-bar { display: flex; gap: 1rem; align-items: center; padding: 0.5rem 0; font-size: 0.85rem; }
+.bypass-banner { background: rgba(239,68,68,0.15); border: 1px solid var(--danger); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; display: none; }
+.bypass-banner.active { display: flex; justify-content: space-between; align-items: center; }
+.health-chain { display: flex; gap: 0.5rem; align-items: center; font-size: 0.9rem; }
+.health-chain .hop { padding: 0.5rem 1rem; border-radius: 6px; background: var(--card); border: 1px solid var(--border); }
+.health-chain .arrow { color: var(--muted); }
+.health-chain .hop.ok { border-color: var(--ok); }
+.health-chain .hop.fail { border-color: var(--danger); }
+.ns-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 768px) { .ns-grid { grid-template-columns: 1fr; } input[type="text"] { width: 100%; } }
+.loading { color: var(--muted); font-style: italic; }
+.footer { text-align: center; padding: 1rem 0; font-size: 0.7rem; color: var(--muted); border-top: 1px solid var(--border); margin-top: 2rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1><span>Q</span>uarantine ControlCenter</h1>
+    <div class="header-info">
+      <div id="app-name">Loading...</div>
+      <div id="argocd-status"></div>
+    </div>
+  </header>
+
+  <div class="bypass-banner" id="bypass-banner">
+    <div><strong>BYPASS AKTIV</strong> — Alle Domains freigegeben. Endet in <span id="bypass-timer">--:--</span></div>
+    <button class="btn-danger btn-sm" onclick="deactivateBypass()">Jetzt beenden</button>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('whitelist')">Whitelist</div>
+    <div class="tab" onclick="showTab('denied')">Denied</div>
+    <div class="tab" onclick="showTab('traffic')">Traffic</div>
+    <div class="tab" onclick="showTab('pods')">Pods</div>
+    <div class="tab" onclick="showTab('policies')">Policies</div>
+    <div class="tab" onclick="showTab('health')">Health</div>
+  </div>
+
+  <!-- WHITELIST TAB -->
+  <div class="panel active" id="panel-whitelist">
+    <div class="card">
+      <h2>Squid Domain-Whitelist</h2>
+      <div class="inline-form">
+        <input type="text" id="new-domain" placeholder="z.B. api.openai.com" onkeydown="if(event.key==='Enter')addDomain()">
+        <button class="btn-primary" onclick="addDomain()">Hinzufuegen</button>
+        <span style="flex:1"></span>
+        <select id="bypass-duration">
+          <option value="30">30 Minuten</option>
+          <option value="60">1 Stunde</option>
+          <option value="120">2 Stunden</option>
+          <option value="480">Bis heute Nacht</option>
+          <option value="540">Nachtfenster (9h)</option>
+          <option value="3420">Wochenende (57h)</option>
+        </select>
+        <button class="btn-warn" onclick="activateBypass()">Bypass</button>
+      </div>
+      <table>
+        <thead><tr><th>Domain</th><th style="width:80px">Aktion</th></tr></thead>
+        <tbody id="whitelist-body"><tr><td colspan="2" class="loading">Lade...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- DENIED TAB -->
+  <div class="panel" id="panel-denied">
+    <div class="card">
+      <h2>Von Squid abgelehnte Domains</h2>
+      <table>
+        <thead><tr><th>Zeit</th><th>Domain</th><th>Client</th><th>Methode</th><th style="width:80px">Aktion</th></tr></thead>
+        <tbody id="denied-body"><tr><td colspan="5" class="loading">Lade...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TRAFFIC TAB -->
+  <div class="panel" id="panel-traffic">
+    <div class="card">
+      <h2>mitmproxy Traffic</h2>
+      <table>
+        <thead><tr><th>Zeit</th><th>Methode</th><th>Host</th><th>Pfad</th><th>Status</th><th>Groesse</th></tr></thead>
+        <tbody id="traffic-body"><tr><td colspan="6" class="loading">Lade...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PODS TAB -->
+  <div class="panel" id="panel-pods">
+    <div class="ns-grid" id="pods-grid">
+      <div class="card"><h2>App-Namespace</h2><div class="loading">Lade...</div></div>
+      <div class="card"><h2>GW-Namespace</h2><div class="loading">Lade...</div></div>
+    </div>
+  </div>
+
+  <!-- POLICIES TAB -->
+  <div class="panel" id="panel-policies">
+    <div class="ns-grid" id="policies-grid">
+      <div class="card"><h2>Policies</h2><div class="loading">Lade...</div></div>
+    </div>
+  </div>
+
+  <!-- HEALTH TAB -->
+  <div class="panel" id="panel-health">
+    <div class="card">
+      <h2>Proxy-Chain Health</h2>
+      <div id="health-display" class="loading">Pruefe...</div>
+      <button class="btn-primary" onclick="refreshHealth()" style="margin-top:1rem">Erneut pruefen</button>
+    </div>
+  </div>
+
+  <div class="footer" id="footer">Quarantine ControlCenter</div>
+</div>
+
+<script>
+const API = '';
+let currentTab = 'whitelist';
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', t.textContent.toLowerCase().replace(/\s/g,'') === name || (name==='whitelist' && i===0)));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-'+name));
+  currentTab = name;
+  refreshTab(name);
+}
+
+async function api(path, opts) {
+  const resp = await fetch(API + path, opts);
+  if (!resp.ok) throw new Error(await resp.text());
+  return resp.json();
+}
+
+async function refreshTab(tab) {
+  try {
+    if (tab === 'whitelist') await refreshWhitelist();
+    else if (tab === 'denied') await refreshDenied();
+    else if (tab === 'traffic') await refreshTraffic();
+    else if (tab === 'pods') await refreshPods();
+    else if (tab === 'policies') await refreshPolicies();
+    else if (tab === 'health') await refreshHealth();
+  } catch(e) { console.error(e); }
+}
+
+async function refreshWhitelist() {
+  const data = await api('/api/config');
+  const tbody = document.getElementById('whitelist-body');
+  if (!data.whitelist.length) {
+    tbody.innerHTML = '<tr><td colspan="2" style="color:var(--muted)">Keine Domains konfiguriert (alle erlaubt)</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.whitelist.map(d =>
+    `<tr><td><code>${d}</code></td><td><button class="btn-danger btn-sm" onclick="removeDomain('${d}')">Entfernen</button></td></tr>`
+  ).join('');
+  // Update bypass banner
+  if (data.bypass && data.bypass.active) {
+    document.getElementById('bypass-banner').classList.add('active');
+    updateBypassTimer(data.bypass.expires_at);
+  } else {
+    document.getElementById('bypass-banner').classList.remove('active');
+  }
+}
+
+async function addDomain() {
+  const input = document.getElementById('new-domain');
+  const domain = input.value.trim();
+  if (!domain) return;
+  input.disabled = true;
+  try {
+    await api('/api/whitelist/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
+    input.value = '';
+    await refreshWhitelist();
+  } catch(e) { alert('Fehler: '+e.message); }
+  input.disabled = false;
+}
+
+async function removeDomain(domain) {
+  if (!confirm(`"${domain}" von der Whitelist entfernen?`)) return;
+  try {
+    await api('/api/whitelist/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
+    await refreshWhitelist();
+  } catch(e) { alert('Fehler: '+e.message); }
+}
+
+async function activateBypass() {
+  const mins = parseInt(document.getElementById('bypass-duration').value);
+  if (!confirm(`Bypass fuer ${mins} Minuten aktivieren? ALLE Domains werden freigegeben.`)) return;
+  try {
+    await api('/api/bypass/activate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({duration_minutes:mins})});
+    await refreshWhitelist();
+  } catch(e) { alert('Fehler: '+e.message); }
+}
+
+async function deactivateBypass() {
+  try {
+    await api('/api/bypass/deactivate', {method:'POST'});
+    await refreshWhitelist();
+  } catch(e) { alert('Fehler: '+e.message); }
+}
+
+function updateBypassTimer(expiresAt) {
+  if (!expiresAt) return;
+  const update = () => {
+    const remaining = new Date(expiresAt) - new Date();
+    if (remaining <= 0) { document.getElementById('bypass-timer').textContent = 'abgelaufen'; return; }
+    const h = Math.floor(remaining/3600000), m = Math.floor((remaining%3600000)/60000), s = Math.floor((remaining%60000)/1000);
+    document.getElementById('bypass-timer').textContent = `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    setTimeout(update, 1000);
+  };
+  update();
+}
+
+async function refreshDenied() {
+  const data = await api('/api/squid/denied');
+  const tbody = document.getElementById('denied-body');
+  if (!data.denied.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted)">Keine abgelehnten Domains gefunden</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.denied.slice(-100).reverse().map(d =>
+    `<tr><td style="font-size:0.75rem">${d.timestamp}</td><td><code>${d.domain}</code></td><td style="font-size:0.75rem">${d.client}</td><td>${d.method}</td><td><button class="btn-ok btn-sm" onclick="addDomainDirect('${d.domain}')">Freigeben</button></td></tr>`
+  ).join('');
+}
+
+async function addDomainDirect(domain) {
+  try {
+    await api('/api/whitelist/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
+    await refreshDenied();
+  } catch(e) { alert('Fehler: '+e.message); }
+}
+
+async function refreshTraffic() {
+  const data = await api('/api/traffic');
+  const tbody = document.getElementById('traffic-body');
+  if (!data.flows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">Keine Traffic-Daten verfuegbar</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.flows.slice(-100).reverse().map(f => {
+    const t = f.timestamp ? new Date(f.timestamp*1000).toLocaleTimeString('de') : '-';
+    const status = f.error ? `<span class="badge badge-error">${f.error.substring(0,30)}</span>` :
+                   f.status_code >= 400 ? `<span class="badge badge-warn">${f.status_code}</span>` :
+                   `<span class="badge badge-ok">${f.status_code}</span>`;
+    const size = f.size > 1024 ? `${(f.size/1024).toFixed(1)}KB` : `${f.size}B`;
+    return `<tr><td style="font-size:0.75rem">${t}</td><td>${f.method}</td><td><code>${f.host}</code></td><td style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">${f.path}</td><td>${status}</td><td>${size}</td></tr>`;
+  }).join('');
+}
+
+async function refreshPods() {
+  const data = await api('/api/pods');
+  const grid = document.getElementById('pods-grid');
+  grid.innerHTML = [
+    {ns: data.app_namespace, pods: data.app_pods},
+    {ns: data.gw_namespace, pods: data.gw_pods}
+  ].map(({ns, pods}) => `
+    <div class="card">
+      <h2>${ns}</h2>
+      <table><thead><tr><th>Pod</th><th>Status</th><th>Restarts</th><th>Image</th></tr></thead><tbody>
+      ${pods.map(p => {
+        const badge = p.phase==='Running' ? 'badge-ok' : p.phase==='Pending' ? 'badge-warn' : 'badge-error';
+        const restarts = p.containers.reduce((s,c) => s+c.restarts, 0);
+        const img = p.containers[0] ? p.containers[0].image.split('/').pop().split('@')[0] : '-';
+        return `<tr><td style="font-size:0.8rem">${p.name}</td><td><span class="badge ${badge}">${p.phase}</span></td><td>${restarts}</td><td style="font-size:0.75rem"><code>${img}</code></td></tr>`;
+      }).join('')}
+      </tbody></table>
+    </div>`
+  ).join('');
+}
+
+async function refreshPolicies() {
+  const data = await api('/api/policies');
+  const grid = document.getElementById('policies-grid');
+  grid.innerHTML = Object.entries(data).map(([ns, p]) => `
+    <div class="card">
+      <h2>${ns}</h2>
+      <h3 style="font-size:0.85rem;color:var(--muted);margin:0.5rem 0">NetworkPolicies</h3>
+      <table><thead><tr><th>Name</th><th>Typ</th></tr></thead><tbody>
+      ${p.networkPolicies.map(pol => `<tr><td><code>${pol.name}</code></td><td>${pol.policyTypes.join(', ')}</td></tr>`).join('')}
+      </tbody></table>
+      ${p.ciliumPolicies.length ? `
+      <h3 style="font-size:0.85rem;color:var(--accent);margin:0.5rem 0">CiliumNetworkPolicies</h3>
+      <table><thead><tr><th>Name</th></tr></thead><tbody>
+      ${p.ciliumPolicies.map(pol => `<tr><td><code>${pol.name}</code></td></tr>`).join('')}
+      </tbody></table>` : ''}
+    </div>`
+  ).join('');
+}
+
+async function refreshHealth() {
+  document.getElementById('health-display').innerHTML = '<span class="loading">Pruefe Proxy-Chain...</span>';
+  const data = await api('/api/health');
+  const hop = (name, result) => {
+    if (!result) return `<div class="hop"><strong>${name}</strong><br><span style="color:var(--muted)">nicht geprueft</span></div>`;
+    const cls = result.ok ? 'ok' : 'fail';
+    const detail = result.ok ? (result.ms ? result.ms+'ms' : (result.status ? 'HTTP '+result.status : 'OK')) : result.error;
+    return `<div class="hop ${cls}"><strong>${name}</strong><br>${result.ok ? '&#10003;' : '&#10007;'} ${detail}</div>`;
+  };
+  document.getElementById('health-display').innerHTML = `
+    <div class="health-chain">
+      ${hop('mitmproxy', data.mitmproxy)}
+      <span class="arrow">&#8594;</span>
+      ${hop('Squid', data.squid)}
+      <span class="arrow">&#8594;</span>
+      ${hop('Internet', data.internet)}
+    </div>
+    ${data.total_ms ? `<p style="margin-top:0.75rem;color:var(--muted)">Gesamtlatenz: ${data.total_ms}ms</p>` : ''}
+  `;
+}
+
+async function refreshInfo() {
+  try {
+    const info = await api('/api/info');
+    document.getElementById('app-name').textContent = `${info.app_name} | ${info.app_namespace}`;
+    document.getElementById('footer').textContent = `Quarantine ControlCenter v${info.version} | Build #${info.build_number} | ${info.build_date || 'dev'}`;
+  } catch(e) {}
+  try {
+    const argo = await api('/api/argocd/status');
+    const cls = argo.sync==='Synced' ? 'badge-ok' : 'badge-warn';
+    document.getElementById('argocd-status').innerHTML = `ArgoCD: <span class="badge ${cls}">${argo.sync}</span> ${argo.revision}`;
+  } catch(e) {}
+}
+
+// Init
+refreshInfo();
+refreshTab('whitelist');
+setInterval(() => refreshTab(currentTab), 15000);
+setInterval(refreshInfo, 30000);
+</script>
+</body>
+</html>
