@@ -6,7 +6,7 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 
 | Property | Value |
 |----------|-------|
-| **Chart** | quarantine-wrapper 1.6.1 |
+| **Chart** | quarantine-wrapper (chart/) |
 | **Type** | Infra-Chart (kein bjw-s) |
 | **Namespaces** | `<appName>-quarantine` + `<appName>-quarantine-gw` |
 | **Proxy-Kette** | App -> mitmproxy (:8080) -> Squid (:3128) -> Internet |
@@ -22,7 +22,7 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 | [docs/VALUES.md](docs/VALUES.md) | Vollstaendige Values-Referenz (alle Parameter mit Defaults und Beschreibung) |
 | [docs/NETWORK-POLICIES.md](docs/NETWORK-POLICIES.md) | NetworkPolicy-Konzept (App-NS, Gateway-NS, CiliumNetworkPolicies) |
 | [docs/LESSONS.md](docs/LESSONS.md) | Lessons Learned nach Version (v1.4.x – v1.6.1) |
-| [BACKLOG.md](BACKLOG.md) | v2-Roadmap (Kyverno-Injection, app-agnostisch) + archiviertes App-Wissen |
+| [docs/CONTROLCENTER-BACKLOG.md](docs/CONTROLCENTER-BACKLOG.md) | ControlCenter-spezifisches Backlog (P2-P6) |
 
 ## Architektur
 
@@ -56,17 +56,16 @@ Jede Quarantine-Instanz wird als eigene ArgoCD-App deployed:
 
 ```bash
 # Helm Template testen
-helm template <appName> . -f values-<appName>.yaml
+helm template <appName> chart --set appName=<appName>
 
 # Lint
-helm lint . -f values-<appName>.yaml
+helm lint chart --set appName=<appName>
 ```
 
 ### Voraussetzungen fuer neue Instanzen
 
-1. **Values-Datei** im Repo erstellen (`values-<appName>.yaml`)
-2. **ArgoCD-App** erstellen (Source: dieses Repo, Helm mit `valueFiles: ["values-<appName>.yaml"]`, `ServerSideApply=true`, `ignoreDifferences` fuer HTTPRoute-Defaults)
-3. Alles weitere passiert **vollautomatisch** beim ersten Sync:
+1. **ArgoCD-App** erstellen: Source: dieses Repo, Path: `chart`, Helm-Parameter `appName=<name>` setzen, `ServerSideApply=true`, `ignoreDifferences` fuer HTTPRoute-Defaults
+2. Alles weitere passiert **vollautomatisch** beim ersten Sync:
    - Namespaces, Policies, Proxy, CA-Generierung, CA-Distribution, Authentik-Setup
 
 **CA-Keypair + mitmweb-Passwort:** Werden automatisch beim ersten ArgoCD-Sync durch einen Sync-Hook Job (Wave -5) generiert und in OpenBao gespeichert. Pfade: `apps/quarantine/<appName>/mitmproxy-ca` (CA) und `apps/quarantine/<appName>/mitmweb-password` (Passwort). Manuelle Secret-Erstellung ist NICHT noetig.
