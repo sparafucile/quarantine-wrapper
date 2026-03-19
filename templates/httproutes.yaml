@@ -31,11 +31,14 @@ spec:
             type: PathPrefix
             value: /
       backendRefs:
-        - group: ""
-          kind: Service
-          name: hello-world
+        {{- if .Values.authentik.enabled }}
+        - name: authentik-server
+          namespace: {{ .Values.authentik.namespace }}
+          port: 80
+        {{- else }}
+        - name: hello-world
           port: {{ .Values.helloWorld.port }}
-          weight: 1
+        {{- end }}
 {{- end }}
 
 {{- if .Values.mitmproxy.enabled }}
