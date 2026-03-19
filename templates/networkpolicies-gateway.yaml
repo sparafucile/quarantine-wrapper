@@ -371,3 +371,96 @@ spec:
     {{- toYaml .Values.egress.extraEgressRules | nindent 4 }}
 {{- end }}
 
+
+{{- if .Values.controlcenter.enabled }}
+---
+# ControlCenter: Ingress von LAN, Gateway, Authentik
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-controlcenter-ingress
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: controlcenter
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: {{ .Values.network.lanCIDR }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: gateway-system
+        {{- if .Values.authentik.enabled }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.authentik.namespace }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.controlcenter.port }}
+---
+# ControlCenter: Egress zu mitmproxy (Traffic-API), DNS, Gitea, ArgoCD
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-controlcenter-egress
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: controlcenter
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # mitmproxy API (intra-Namespace)
+    {{- if .Values.mitmproxy.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app: mitmproxy-debug
+      ports:
+        - protocol: TCP
+          port: {{ .Values.mitmproxy.webPort }}
+    {{- end }}
+    # K8s API (ServiceCIDR for ClusterIP pre-DNAT)
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.network.serviceCIDR }}
+      ports:
+        - protocol: TCP
+          port: 443
+    # Gitea + ArgoCD (external via Cloudflare, needs internet egress)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - {{ .Values.network.podCIDR }}
+              - {{ .Values.network.lanCIDR }}
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}
