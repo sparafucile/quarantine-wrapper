@@ -150,6 +150,29 @@ spec:
         app.kubernetes.io/component: controlcenter
     spec:
       serviceAccountName: controlcenter
+      {{- if .Values.ca.enabled }}
+      initContainers:
+      - name: trust-mitmproxy-ca
+        image: {{ .Values.ca.initImage.repository }}:{{ .Values.ca.initImage.tag }}
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            if [ -f /ca-cert/mitmproxy-ca-cert.pem ]; then
+              cp /ca-cert/mitmproxy-ca-cert.pem /usr/local/share/ca-certificates/mitmproxy-ca.crt
+              update-ca-certificates
+              cp /etc/ssl/certs/ca-certificates.crt /shared-certs/ca-certificates.crt
+              echo "CA installed for ControlCenter"
+            else
+              cp /etc/ssl/certs/ca-certificates.crt /shared-certs/ca-certificates.crt
+              echo "No mitmproxy CA found, using system certs"
+            fi
+        volumeMounts:
+          - name: mitmproxy-ca-cert
+            mountPath: /ca-cert
+            readOnly: true
+          - name: shared-certs
+            mountPath: /shared-certs
+      {{- end }}
       containers:
       - name: controlcenter
         image: {{ .Values.controlcenter.image.repository }}:{{ .Values.controlcenter.image.tag }}
@@ -194,6 +217,20 @@ spec:
         {{- if .Values.mitmproxy.enabled }}
         - name: MITMWEB_URL
           value: {{ printf "https://%s" (include "quarantine-wrapper.mitmwebHostname" .) | quote }}
+        - name: PROXY_URL
+          value: {{ printf "http://mitmproxy.%s.svc.p-k8s-cluster.local:%d" (include "quarantine-wrapper.gwNamespace" .) (.Values.mitmproxy.proxyPort | int) | quote }}
+        {{- end }}
+        {{- if .Values.ca.enabled }}
+        - name: SSL_CERT_FILE
+          value: "/etc/ssl/custom/ca-certificates.crt"
+        - name: REQUESTS_CA_BUNDLE
+          value: "/etc/ssl/custom/ca-certificates.crt"
+        {{- end }}
+        {{- if .Values.ca.enabled }}
+        volumeMounts:
+        - name: shared-certs
+          mountPath: /etc/ssl/custom
+          readOnly: true
         {{- end }}
         resources:
           {{- toYaml .Values.controlcenter.resources | nindent 10 }}
@@ -209,4 +246,13 @@ spec:
             port: {{ .Values.controlcenter.port }}
           initialDelaySeconds: 5
           periodSeconds: 15
+      {{- if .Values.ca.enabled }}
+      volumes:
+      - name: mitmproxy-ca-cert
+        configMap:
+          name: mitmproxy-ca-cert
+          optional: true
+      - name: shared-certs
+        emptyDir: {}
+      {{- end }}
 {{- end }}
