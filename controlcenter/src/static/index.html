@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quarantine ControlCenter</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230f172a'/><text x='4' y='24' font-size='22' font-weight='bold' fill='%233b82f6'>Q</text></svg>">
 <style>
 :root { --bg: #0f172a; --card: #1e293b; --border: #334155; --accent: #3b82f6; --danger: #ef4444; --warn: #f59e0b; --ok: #22c55e; --succeeded: #6366f1; --text: #e2e8f0; --muted: #94a3b8; --input-bg: #0f172a; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -101,6 +102,14 @@ tr.released td { opacity: 0.5; text-decoration: line-through; }
       <div class="inline-form">
         <input type="text" id="new-domain" placeholder="z.B. api.openai.com" onkeydown="if(event.key==='Enter')addDomain()">
         <button class="btn-primary" onclick="addDomain()">Hinzufuegen</button>
+        <select id="pkg-template" onchange="applyTemplate()" style="margin-left:0.5rem">
+          <option value="">Vorlage...</option>
+          <option value="npm">npm</option>
+          <option value="pip">pip/PyPI</option>
+          <option value="apt">apt/Debian</option>
+          <option value="docker">Docker Hub</option>
+          <option value="github">GitHub API</option>
+        </select>
         <span style="flex:1"></span>
         <select id="bypass-duration">
           <option value="30">30 Minuten</option>
@@ -123,6 +132,10 @@ tr.released td { opacity: 0.5; text-decoration: line-through; }
   <div class="panel" id="panel-denied">
     <div class="card">
       <h2>Von Squid abgelehnte Domains</h2>
+      <div class="inline-form">
+        <button class="btn-ok btn-sm" onclick="batchWhitelist()" id="batch-whitelist-btn" style="display:none">Alle Freigeben</button>
+        <span id="denied-count" style="color:var(--muted);font-size:0.8rem"></span>
+      </div>
       <table>
         <thead><tr><th>Zeit</th><th>Domain</th><th>Client</th><th>Methode</th><th style="width:80px">Aktion</th></tr></thead>
         <tbody id="denied-body"><tr><td colspan="5" class="loading">Lade...</td></tr></tbody>
@@ -354,6 +367,14 @@ async function refreshDenied() {
 
 function renderDenied() {
   const tbody = document.getElementById('denied-body');
+  // Count unreleased domains
+  const unreleased = deniedCache.filter(d => !releasedDomains.has(d.domain));
+  const uniqueUnreleased = [...new Set(unreleased.map(d => d.domain))];
+  const batchBtn = document.getElementById('batch-whitelist-btn');
+  const countEl = document.getElementById('denied-count');
+  if (batchBtn) batchBtn.style.display = uniqueUnreleased.length > 1 ? '' : 'none';
+  if (countEl) countEl.textContent = deniedCache.length ? `${uniqueUnreleased.length} unique / ${deniedCache.length} total` : '';
+
   if (!deniedCache.length) {
     tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted)">Keine abgelehnten Domains gefunden</td></tr>';
     return;
@@ -377,6 +398,45 @@ async function addDomainDirect(domain) {
   } catch(e) {
     showSyncStatus('error', e.message);
   }
+}
+
+async function batchWhitelist() {
+  const unreleased = [...new Set(deniedCache.filter(d => !releasedDomains.has(d.domain)).map(d => d.domain))];
+  if (!unreleased.length) return;
+  if (!confirm(`${unreleased.length} Domains freigeben?\n\n${unreleased.join('\n')}`)) return;
+  showSyncStatus('committed');
+  for (const domain of unreleased) {
+    try {
+      await api('/api/whitelist/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
+      releasedDomains.add(domain);
+    } catch(e) { console.error(`Failed to add ${domain}:`, e); }
+  }
+  renderDenied();
+}
+
+// --- Package Manager Templates ---
+const PKG_TEMPLATES = {
+  npm: ['registry.npmjs.org', 'registry.yarnpkg.com', 'nodejs.org'],
+  pip: ['pypi.org', 'files.pythonhosted.org', 'pythonhosted.org'],
+  apt: ['deb.debian.org', 'security.debian.org', 'archive.ubuntu.com', 'security.ubuntu.com'],
+  docker: ['registry-1.docker.io', 'auth.docker.io', 'production.cloudflare.docker.com', 'index.docker.io'],
+  github: ['api.github.com', 'github.com', 'raw.githubusercontent.com', 'objects.githubusercontent.com'],
+};
+
+async function applyTemplate() {
+  const sel = document.getElementById('pkg-template');
+  const tpl = sel.value;
+  if (!tpl || !PKG_TEMPLATES[tpl]) return;
+  sel.value = '';
+  const domains = PKG_TEMPLATES[tpl];
+  if (!confirm(`${tpl.toUpperCase()} Domains hinzufuegen?\n\n${domains.join('\n')}`)) return;
+  showSyncStatus('committed');
+  for (const domain of domains) {
+    try {
+      await api('/api/whitelist/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
+    } catch(e) { console.error(`Failed to add ${domain}:`, e); }
+  }
+  await refreshWhitelist();
 }
 
 // --- Traffic (sortable + filterable) ---
