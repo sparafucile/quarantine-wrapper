@@ -319,6 +319,8 @@ spec:
         - ports:
             - port: "{{ .Values.mitmproxy.webPort }}"
               protocol: TCP
+            - port: "{{ .Values.mitmproxy.proxyPort }}"
+              protocol: TCP
     {{- end }}
     # Gitea + ArgoCD (external via Cloudflare)
     - toCIDR:

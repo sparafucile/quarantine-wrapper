@@ -435,7 +435,7 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
-    # mitmproxy API (intra-Namespace)
+    # mitmproxy Web-UI + Proxy-Port (intra-Namespace, fuer Health-Check)
     {{- if .Values.mitmproxy.enabled }}
     - to:
         - podSelector:
@@ -444,6 +444,8 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.mitmproxy.webPort }}
+        - protocol: TCP
+          port: {{ .Values.mitmproxy.proxyPort }}
     {{- end }}
     # K8s API (ServiceCIDR for ClusterIP pre-DNAT)
     - to:
