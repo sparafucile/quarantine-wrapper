@@ -36,8 +36,14 @@ data:
     cache_dir ufs /var/spool/squid 1000 16 256
     maximum_object_size 512 MB
     dns_nameservers {{ .Values.network.coreDNSClusterIP }}
+    # Timeouts fuer Long-Poll-kompatiblen Proxy-Betrieb (Matrix /sync = 30s)
+    # HINWEIS: Squid hat einen Bug in tunnel.cc — read_timeout wird bei
+    # CONNECT-Tunnels nur bei Lese-Ops zurueckgesetzt, nicht bei Schreib-Ops.
+    # Zu niedrige Werte (z.B. 60s) fuehren zu sporadischen 502 bei Long-Polls.
     connect_timeout 30 seconds
-    read_timeout 60 seconds
+    read_timeout 15 minutes
+    server_idle_pconn_timeout 5 minutes
+    client_idle_pconn_timeout 5 minutes
 ---
 apiVersion: apps/v1
 kind: Deployment
