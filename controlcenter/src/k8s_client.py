@@ -82,14 +82,23 @@ async def get_pods(namespace: str) -> list:
     pods = []
     for p in data.get("items", []):
         meta = p["metadata"]
+        spec = p.get("spec", {})
         status = p["status"]
+
+        # Build lookup: spec image (human-readable) by container name
+        spec_images = {}
+        for c in spec.get("containers", []) + spec.get("initContainers", []):
+            spec_images[c["name"]] = c.get("image", "")
+
         containers = []
         for cs in status.get("containerStatuses", []) + status.get("initContainerStatuses", []):
+            # Prefer spec image (has tag name) over status image (often resolved to digest)
+            image = spec_images.get(cs["name"], cs.get("image", ""))
             containers.append({
                 "name": cs["name"],
                 "ready": cs.get("ready", False),
                 "restarts": cs.get("restartCount", 0),
-                "image": cs.get("image", ""),
+                "image": image,
                 "state": list(cs.get("state", {}).keys())[0] if cs.get("state") else "unknown",
             })
         pods.append({
