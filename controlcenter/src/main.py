@@ -67,13 +67,11 @@ async def get_info():
 async def get_config():
     """Current Squid whitelist and configuration."""
     try:
-        content, _ = await gitea_client.get_values_file()
-        domains = gitea_client.parse_whitelist(content)
+        domains = await gitea_client.get_whitelist_from_argocd()
         bypass = bypass_scheduler.get_state()
         return {
             "whitelist": domains,
             "bypass": bypass,
-            "values_file": config.GITEA_VALUES_FILE,
         }
     except Exception as e:
         logger.error(f"Failed to get config: {e}")
@@ -82,22 +80,15 @@ async def get_config():
 
 @app.post("/api/whitelist/add")
 async def add_to_whitelist(action: DomainAction):
-    """Add domain to Squid whitelist via GitOps."""
+    """Add domain to Squid whitelist via ArgoCD."""
     domain = action.domain.strip().lower()
     if not domain:
         raise HTTPException(400, "Domain required")
 
     try:
-        content, sha = await gitea_client.get_values_file()
-        domains = gitea_client.parse_whitelist(content)
-        if domain in domains:
+        result = await gitea_client.add_domain_to_argocd(domain)
+        if result["status"] == "exists":
             return {"status": "exists", "domain": domain}
-
-        domains.append(domain)
-        new_content = gitea_client.update_whitelist(content, domains)
-        await gitea_client.update_values_file(
-            new_content, sha, f"controlcenter: add {domain} to squid whitelist"
-        )
 
         # Trigger ArgoCD sync
         sync_result = await argocd_client.trigger_sync()
@@ -109,19 +100,13 @@ async def add_to_whitelist(action: DomainAction):
 
 @app.post("/api/whitelist/remove")
 async def remove_from_whitelist(action: DomainAction):
-    """Remove domain from Squid whitelist via GitOps."""
+    """Remove domain from Squid whitelist via ArgoCD."""
     domain = action.domain.strip().lower()
     try:
-        content, sha = await gitea_client.get_values_file()
-        domains = gitea_client.parse_whitelist(content)
-        if domain not in domains:
+        result = await gitea_client.remove_domain_from_argocd(domain)
+        if result["status"] == "not_found":
             return {"status": "not_found", "domain": domain}
 
-        domains.remove(domain)
-        new_content = gitea_client.update_whitelist(content, domains)
-        await gitea_client.update_values_file(
-            new_content, sha, f"controlcenter: remove {domain} from squid whitelist"
-        )
         sync_result = await argocd_client.trigger_sync()
         return {"status": "removed", "domain": domain, "sync": sync_result}
     except Exception as e:
@@ -215,8 +200,7 @@ async def activate_bypass(action: BypassAction):
     if action.duration_minutes < 1 or action.duration_minutes > 10080:  # max 1 week
         raise HTTPException(400, "Duration must be 1-10080 minutes")
     try:
-        content, _ = await gitea_client.get_values_file()
-        current_whitelist = gitea_client.parse_whitelist(content)
+        current_whitelist = await gitea_client.get_whitelist_from_argocd()
         await bypass_scheduler.activate_bypass(action.duration_minutes, current_whitelist)
         return {"status": "activated", "duration_minutes": action.duration_minutes,
                 "saved_domains": len(current_whitelist)}
