@@ -2,10 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY src/requirements.txt .
+COPY controlcenter/src/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/ .
+COPY controlcenter/src/ .
 
 # Non-root user
 RUN useradd -r -u 1000 cc && chown -R cc:cc /app
