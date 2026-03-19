@@ -39,7 +39,15 @@ async def get_whitelist_from_argocd() -> list[str]:
         logger.info(f"Whitelist from ArgoCD parameters: {len(domains)} domains")
         return domains
 
-    # 2. Check valueFiles (read from Gitea)
+    # 2. Check inline helm values (values string in ArgoCD app spec)
+    inline_values = helm.get("values", "")
+    if inline_values:
+        parsed = _parse_whitelist_yaml(inline_values)
+        if parsed:
+            logger.info(f"Whitelist from inline values: {len(parsed)} domains")
+            return parsed
+
+    # 3. Check valueFiles (read from Gitea)
     for vf in helm.get("valueFiles", []):
         try:
             content = await _read_gitea_file(vf)
