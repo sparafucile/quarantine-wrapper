@@ -181,6 +181,14 @@ metadata:
   namespace: {{ include "quarantine-wrapper.appNamespace" . }}
   labels:
     {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+    {{- if .Values.authentik.enabled }}
+    quarantine.sparafucile.net/authentik: "true"
+    {{- end }}
+  {{- if .Values.authentik.enabled }}
+  annotations:
+    quarantine.sparafucile.net/external-host: "https://{{ include "quarantine-wrapper.helloWorldHostname" . }}"
+    quarantine.sparafucile.net/skip-path-regex: ""
+  {{- end }}
 spec:
   selector:
     app: hello-world
