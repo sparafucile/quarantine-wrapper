@@ -73,6 +73,9 @@ mitmproxy:
   webPort: 8081
   hostname: ""                 # Default: p-<appName>-mitmweb-k8s.sparafucile.net
   openbaoPath: ""              # Default: apps/<appName>-quarantine/mitmweb-password
+  streamLargeBodies: "5m"      # Responses > 5MB werden gestreamt statt gebuffert.
+                                # Wert "1" (1 Byte) verursacht intermittierende 502 bei
+                                # CONNECT-Tunnels (z.B. Matrix /sync Long-Poll).
   storageClass: longhorn
   storageSize: 100Mi
   resources:

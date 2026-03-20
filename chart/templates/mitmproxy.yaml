@@ -75,9 +75,10 @@ spec:
             - "{{ .Values.mitmproxy.proxyPort }}"
             - "--set"
             - "block_global=false"
-            # Stream statt Buffern: verhindert Timeout bei Long-Poll (z.B. Matrix /sync)
+            # Stream statt Buffern fuer grosse Responses. Default 5m.
+            # NICHT auf "1" setzen — verursacht intermittierende 502 bei CONNECT-Tunnels!
             - "--set"
-            - "stream_large_bodies=1"
+            - "stream_large_bodies={{ .Values.mitmproxy.streamLargeBodies }}"
             {{- if .Values.ca.enabled }}
             - "--set"
             - "confdir=/home/mitmproxy/.mitmproxy"
