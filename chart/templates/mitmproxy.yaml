@@ -28,6 +28,8 @@ metadata:
     {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
 spec:
   replicas: 1
+  strategy:
+    type: Recreate      # RWO PVC — RollingUpdate haengt bei Multi-Attach
   selector:
     matchLabels:
       app: mitmproxy-debug
