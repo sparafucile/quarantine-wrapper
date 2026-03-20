@@ -109,7 +109,7 @@ helloWorld:
   enabled: false
   image:
     repository: nginx
-    tag: "1.27-alpine"
+    tag: "1.29-alpine"
   port: 8080
   hostname: ""                 # Default: p-<appName>-hello-k8s.sparafucile.net
   resources:
