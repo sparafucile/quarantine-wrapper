@@ -51,7 +51,7 @@ egress:
 squid:
   image:
     repository: ubuntu/squid
-    tag: latest
+    tag: "5.2-22.04_beta"
   port: 3128
   resources:
     requests:
@@ -68,7 +68,7 @@ mitmproxy:
   enabled: true
   image:
     repository: mitmproxy/mitmproxy
-    tag: latest
+    tag: "12.2.1"
   proxyPort: 8080
   webPort: 8081
   hostname: ""                 # Default: p-<appName>-mitmweb-k8s.sparafucile.net
