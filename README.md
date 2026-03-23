@@ -9,7 +9,7 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 | **Chart** | quarantine-wrapper (`chart/`) |
 | **Type** | Infra-Chart (kein bjw-s) |
 | **Namespaces** | `<appName>-quarantine` + `<appName>-quarantine-gw` |
-| **Proxy-Kette** | App -> mitmproxy (:8080) -> Squid (:3128) -> Internet |
+| **Proxy-Kette** | App -> mitmproxy (:8080) -> Squid (:3128) -> Internet (Bypass via `noProxyHosts`) |
 | **Isolation** | NetworkPolicy + CiliumNetworkPolicy (default-deny) |
 | **CA** | Auto-generiert via OpenBao K8s Auth + ExternalSecret + CronJob-Distribution |
 | **mitmweb PW** | Auto-generiert via OpenBao, als `web_password` an mitmweb uebergeben |
@@ -52,6 +52,8 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 ```
 
 **Proxy-Kette:** App-Pods nutzen mitmproxy als HTTP(S)-Proxy. mitmproxy laeuft im `upstream`-Modus und leitet allen Traffic an Squid weiter. Squid filtert nach Domain-Whitelist und leitet erlaubten Traffic ins Internet. Dadurch sind ALLE Requests (auch von Squid abgelehnte) in mitmweb sichtbar. Nur Squid hat Internet-Egress — mitmproxy kann das Internet nicht direkt erreichen.
+
+**Proxy-Bypass:** Fuer Dienste deren SDKs nicht mit mitmproxy kompatibel sind (z.B. tunnel-agent in matrix-bot-sdk: CONNECT-Tunnel-Bugs bei langlebigen Verbindungen), koennen Hosts den Proxy komplett umgehen. Dazu `egress.noProxyHosts` (Hostname in NO_PROXY) und `egress.directEgressCIDRs` (NetworkPolicy fuer direkten HTTPS-Egress auf Port 443) parallel konfigurieren. Siehe `docs/VALUES.md` fuer Details.
 
 **ControlCenter (optional):** Web-UI im GW-Namespace zur Verwaltung der Quarantine-Umgebung. Bietet: Squid-Whitelist-Management mit ArgoCD-Sync-Feedback, Denied-Log-Viewer mit persistentem Cache, mitmproxy Traffic-Inspektion mit Deep-Links, Pod-Status mit Headlamp-Links, NetworkPolicy-Uebersicht, Proxy-Chain Health-Check, Bypass-Modus und Paketmanager-Vorlagen (npm/pip/apt/Docker/GitHub). Quellcode in `controlcenter/`, Image wird via Jenkins als `quarantine-controlcenter` nach Harbor gepusht.
 
@@ -150,7 +152,7 @@ Die Pipeline baut das Image bei Aenderungen in `controlcenter/` oder `VERSION`, 
 |----------|-----------|
 | `_helpers.tpl` | Namespace-Helpers, Label-Helpers, Hostname-Defaults, Proxy-Env |
 | `namespaces.yaml` | 2 Namespaces |
-| `networkpolicies-quarantine.yaml` | 7 NetworkPolicies |
+| `networkpolicies-quarantine.yaml` | 7-8 NetworkPolicies (+ allow-direct-egress wenn directEgressCIDRs gesetzt) |
 | `networkpolicies-gateway.yaml` | 7-9 NetworkPolicies (je nach authentik/controlcenter.enabled) |
 | `cilium-policies.yaml` | 3-6 CiliumNetworkPolicies |
 | `squid.yaml` | ConfigMap, Deployment, Service |
