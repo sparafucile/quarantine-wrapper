@@ -86,9 +86,9 @@ spec:
             - "--set"
             - "confdir=/home/mitmproxy/.mitmproxy"
             {{- end }}
-            {{- if .Values.mitmproxy.ignoreHosts }}
+            {{- range .Values.mitmproxy.ignoreHosts }}
             - "--set"
-            - {{ printf "ignore_hosts=%s" (.Values.mitmproxy.ignoreHosts | toJson) | quote }}
+            - {{ printf "ignore_hosts=%s" . | quote }}
             {{- end }}
             - "--set"
             - "web_password=$(MITMWEB_PASSWORD)"
