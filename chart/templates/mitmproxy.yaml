@@ -88,7 +88,7 @@ spec:
             {{- end }}
             {{- if .Values.mitmproxy.ignoreHosts }}
             - "--set"
-            - "ignore_hosts={{ .Values.mitmproxy.ignoreHosts | toJson }}"
+            - {{ printf "ignore_hosts=%s" (.Values.mitmproxy.ignoreHosts | toJson) | quote }}
             {{- end }}
             - "--set"
             - "web_password=$(MITMWEB_PASSWORD)"
