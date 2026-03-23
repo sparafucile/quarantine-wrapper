@@ -76,6 +76,10 @@ mitmproxy:
   streamLargeBodies: "5m"      # Responses > 5MB werden gestreamt statt gebuffert.
                                 # Wert "1" (1 Byte) verursacht intermittierende 502 bei
                                 # CONNECT-Tunnels (z.B. Matrix /sync Long-Poll).
+  ignoreHosts: []               # Hosts die NICHT TLS-intercepted werden (Regex-Patterns).
+                                # Nützlich für Dienste deren SDK die mitmproxy-CA nicht
+                                # respektiert (z.B. tunnel-agent in matrix-bot-sdk).
+                                # Beispiel: ["matrix\\.sparafucile\\.net"]
   storageClass: longhorn
   storageSize: 100Mi
   resources:
