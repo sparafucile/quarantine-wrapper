@@ -205,9 +205,15 @@ Kyverno liest diese Annotation und injiziert sie als Env-Var in alle Pods.
 
 {{/*
 NO_PROXY Wert für Namespace-Annotation.
+Enthält Cluster-interne Adressen + optional egress.noProxyHosts für Proxy-Bypass.
 */}}
 {{- define "quarantine-wrapper.noProxy" -}}
-{{- printf "127.0.0.1,localhost,.%s.svc,.%s.svc,%s" (include "quarantine-wrapper.appNamespace" .) (include "quarantine-wrapper.gwNamespace" .) .Values.network.serviceCIDR }}
+{{- $base := printf "127.0.0.1,localhost,.%s.svc,.%s.svc,%s" (include "quarantine-wrapper.appNamespace" .) (include "quarantine-wrapper.gwNamespace" .) .Values.network.serviceCIDR -}}
+{{- $extra := "" -}}
+{{- range .Values.egress.noProxyHosts -}}
+{{- $extra = printf "%s,%s" $extra . -}}
+{{- end -}}
+{{- printf "%s%s" $base $extra -}}
 {{- end }}
 
 {{/*

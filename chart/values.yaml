@@ -44,6 +44,18 @@ egress:
   #   - api.openai.com                      # OpenAI API
   #   - registry.npmjs.org                  # npm Registry
   extraEgressRules: []         # Zusaetzliche K8s NetworkPolicy egress rules
+  # --- Proxy-Bypass: Direkter Internet-Zugang fuer bestimmte Hosts ---
+  # Fuer Dienste, deren SDKs nicht mit mitmproxy kompatibel sind
+  # (z.B. tunnel-agent in matrix-bot-sdk: CONNECT-Tunnel-Bugs).
+  # noProxyHosts: Hostnames werden zu NO_PROXY hinzugefuegt.
+  # directEgressCIDRs: CIDRs/IPs erhalten eine eigene NetworkPolicy
+  #   fuer direkten HTTPS-Zugang (Port 443) ohne Proxy.
+  # BEIDE Listen muessen parallel gepflegt werden!
+  # Beispiel:
+  #   noProxyHosts: ["matrix.sparafucile.net"]
+  #   directEgressCIDRs: ["65.21.253.11/32"]
+  noProxyHosts: []
+  directEgressCIDRs: []
 
 # ============================================================
 # PROXY: Squid

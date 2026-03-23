@@ -192,3 +192,30 @@ spec:
         {{- end }}
       {{- end }}
 {{- end }}
+{{- if .Values.egress.directEgressCIDRs }}
+---
+# Direkter HTTPS-Egress fuer Hosts die den Proxy umgehen muessen.
+# Notwendig wenn SDKs (z.B. tunnel-agent/matrix-bot-sdk) nicht mit
+# mitmproxy-CONNECT-Tunnels kompatibel sind.
+# CIDRs konfigurierbar via egress.directEgressCIDRs in values.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-direct-egress
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        {{- range .Values.egress.directEgressCIDRs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}
