@@ -4,8 +4,8 @@ Stand: Session 200 (2026-03-19), CC v1.0.14 deployed.
 
 ## Aktueller Stand
 
-CC v1.0.14 deployed im `openclaw-quarantine-gw` Namespace.
-URL: https://p-openclaw-quarantine-cc-k8s.sparafucile.net (hinter Authentik)
+CC v1.0.14 deployed im `<appName>-quarantine-gw` Namespace.
+URL: `https://p-<appName>-quarantine-cc-k8s.sparafucile.net` (hinter Authentik)
 Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.14`
 
 ### Funktioniert
@@ -56,8 +56,7 @@ Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.1
 - [x] Cleanup-Script: Enthaelt GW-Namespace-Prefix fuer vollstaendiges Aufraumen
 
 **P5 (erledigt):**
-- [x] values-openclaw.yaml: War bereits nach ArgoCD inline values migriert
-- [ ] ArgoCD openclaw App: Sync-Hook-Probleme loesen (Hooks blockieren bei jedem Sync)
+- [x] App-spezifische values-Datei: War bereits nach ArgoCD inline values migriert
 
 **P6 (erledigt):**
 - [x] Paketmanager-Templates: npm, pip/PyPI, apt/Debian, Docker Hub, GitHub API
@@ -70,7 +69,7 @@ Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.1
 - [ ] Bypass-Modus: Zeitgesteuerte All-Domains-Freigabe testen (UI + Backend vorhanden)
 - [ ] Squid access.log persistent machen: PVC fuer /var/log/squid (optional, cc-state reicht)
 - [ ] Traffic-Tab: Auto-Refresh Intervall konfigurierbar machen
-- [ ] ArgoCD Sync-Hook-Probleme (Hooks blockieren bei jedem Sync)
+- [ ] ArgoCD Sync-Hook-Probleme (Hooks blockieren bei jedem Sync bei manchen Apps)
 - [ ] Jenkins CI/CD Race Condition (GIT_PREVIOUS_SUCCESSFUL_COMMIT)
 
 ## Architektur-Hinweise
@@ -78,7 +77,7 @@ Image: `p-harbor-core-k8s.sparafucile.net/library/quarantine-controlcenter:1.0.1
 ### Tokens/Secrets
 - CC Gitea Token: ExternalSecret `cc-gitea-token` -> OpenBao `apps/claude/credentials` (key: `gitea-token`)
 - CC ArgoCD Token: ExternalSecret `cc-argocd-token` -> OpenBao `apps/claude/credentials` (key: `argocd-token`)
-- mitmweb Passwort: ExternalSecret `mitmweb-password` -> OpenBao `apps/openclaw-quarantine-gw/mitmweb-password`
+- mitmweb Passwort: ExternalSecret `mitmweb-password` -> OpenBao `apps/<appName>-quarantine-gw/mitmweb-password`
 
 ### mitmweb Auth-Mechanismus
 mitmweb (alle aktuellen Versionen) verwendet `?token=PASSWORD` als Query-Parameter fuer API-Auth. Basic Auth (leerer Username) funktioniert NICHT. Das gilt fuer alle REST API Endpunkte (/flows, /events, etc.). Quelle: mitmproxy Source + CVE-2025-23217 Auth-Enforcement.
