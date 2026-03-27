@@ -43,7 +43,16 @@ egress:
   #   - generativelanguage.googleapis.com   # Google Gemini API
   #   - api.openai.com                      # OpenAI API
   #   - registry.npmjs.org                  # npm Registry
-  extraEgressRules: []         # Zusaetzliche K8s NetworkPolicy egress rules
+  extraEgressRules: []         # Zusaetzliche K8s NetworkPolicy egress rules (App-Namespace)
+  # --- Squid → Cluster-interne Services (GW-Namespace) ---
+  # Erlaubt Squid Egress zu bestimmten Namespaces/Ports innerhalb des Clusters.
+  # Verwendet namespaceSelector (nicht IPs!) — funktioniert mit dynamischen ClusterIPs.
+  # Squid's Domain-Whitelist (squidAllowedDomains) schuetzt weiterhin.
+  squidClusterEgress: []
+  # Beispiel:
+  # squidClusterEgress:
+  #   - namespace: securevector     # Ziel-Namespace
+  #     port: 8742                  # Ziel-Port (TCP)
   # --- Proxy-Bypass: Direkter Internet-Zugang fuer bestimmte Hosts ---
   # Fuer Dienste, deren SDKs nicht mit mitmproxy kompatibel sind
   # (z.B. tunnel-agent in matrix-bot-sdk: CONNECT-Tunnel-Bugs).

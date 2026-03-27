@@ -380,6 +380,40 @@ spec:
   egress:
     {{- toYaml .Values.egress.extraEgressRules | nindent 4 }}
 {{- end }}
+{{- if .Values.egress.squidClusterEgress }}
+---
+# Squid → Cluster-interne Services (Namespace-basiert, keine IPs!)
+# Erlaubt dem Squid-Proxy Egress zu bestimmten Namespaces.
+# Squid's Domain-Whitelist (squidAllowedDomains) schuetzt weiterhin.
+# WICHTIG: Zwei "to"-Regeln pro Eintrag:
+#   1. namespaceSelector → matcht Pods NACH DNAT (Cilium evaluiert Policy vor DNAT)
+#   2. ipBlock: serviceCIDR → matcht ClusterIP VOR DNAT
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-squid-to-cluster-services
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: egress-proxy
+  policyTypes:
+    - Egress
+  egress:
+    {{- range .Values.egress.squidClusterEgress }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .namespace }}
+        - ipBlock:
+            cidr: {{ $.Values.network.serviceCIDR }}
+      ports:
+        - protocol: TCP
+          port: {{ .port }}
+    {{- end }}
+{{- end }}
 
 
 {{- if .Values.controlcenter.enabled }}
