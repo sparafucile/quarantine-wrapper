@@ -13,8 +13,8 @@ data:
     http_port {{ .Values.squid.port }}
 
     acl quarantine_net src {{ .Values.network.podCIDR }}
-    acl SSL_ports port 443
-    acl Safe_ports port 80 443 8080 8443
+    acl SSL_ports port{{ range .Values.squid.sslPorts }} {{ . }}{{ end }}
+    acl Safe_ports port{{ range .Values.squid.safePorts }} {{ . }}{{ end }}
     {{- range .Values.egress.squidClusterEgress }}
     acl Safe_ports port {{ .port }}
     acl SSL_ports port {{ .port }}

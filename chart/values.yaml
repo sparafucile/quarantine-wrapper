@@ -74,6 +74,10 @@ squid:
     repository: ubuntu/squid
     tag: "5.2-22.04_beta"
   port: 3128
+  # Erlaubte Ports fuer Squid ACL (Safe_ports = alle, SSL_ports = CONNECT-Tunnel)
+  safePorts: [80, 443, 8080, 8443]
+  sslPorts: [443]
+  # Ports aus squidClusterEgress werden automatisch ergaenzt!
   resources:
     requests:
       memory: "256Mi"
