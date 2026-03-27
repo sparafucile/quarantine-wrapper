@@ -19,6 +19,8 @@ async def get_app_status() -> dict:
             "health": status.get("health", {}).get("status", "Unknown"),
             "revision": status.get("sync", {}).get("revision", "")[:12],
             "operationPhase": status.get("operationState", {}).get("phase", ""),
+            "argocd_url": config.ARGOCD_URL,
+            "app_name": config.ARGOCD_APP_NAME,
         }
 
 
