@@ -27,7 +27,7 @@ Erzeugt NetworkPolicy- und CiliumNetworkPolicy-Regeln fuer die angegebenen Ports
 
 ```yaml
 ingressPorts:
-  - 18789   # z.B. OpenClaw Gateway
+  - 8080   # z.B. App-HTTP-Port
 ```
 
 ## Services (Legacy v1 / vereinfacht)
@@ -61,9 +61,9 @@ Wenn `authentik.enabled`: PostSync-Job erstellt automatisch Proxy-Provider, Appl
 ```yaml
 authentik:
   externalApps:
-    - name: openclaw                               # Provider-Name (wird zu <appName>-<name>)
-      hostname: p-openclaw-k8s.sparafucile.net      # Externer Hostname
-      service: openclaw                             # K8s Service-Name im App-Namespace
+    - name: myapp                                   # Provider-Name (wird zu <appName>-<name>)
+      hostname: p-myapp-k8s.sparafucile.net          # Externer Hostname
+      service: myapp                                 # K8s Service-Name im App-Namespace
       port: 18789                                   # Service-Port
       skipPathRegex: "^/api/v1/"                    # API-Bypass Regex (optional, leer = kein Bypass)
 ```
