@@ -15,6 +15,10 @@ data:
     acl quarantine_net src {{ .Values.network.podCIDR }}
     acl SSL_ports port 443
     acl Safe_ports port 80 443 8080 8443
+    {{- range .Values.egress.squidClusterEgress }}
+    acl Safe_ports port {{ .port }}
+    acl SSL_ports port {{ .port }}
+    {{- end }}
     acl CONNECT method CONNECT
     {{- if .Values.egress.squidAllowedDomains }}
 
