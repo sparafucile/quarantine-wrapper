@@ -155,3 +155,105 @@ async def remove_domain_from_whitelist(domain: str) -> dict:
     except Exception as e:
         logger.error(f"Failed to remove domain: {e}")
         raise
+
+
+# --- Cluster-Service Egress Management ---
+
+import re
+import yaml
+
+_CLUSTER_SVC_RE = re.compile(
+    r"^(?P<service>[\w-]+)\.(?P<namespace>[\w-]+)\.svc(?:\.(?P<cluster_dns>.+))?$"
+)
+
+
+def parse_cluster_service(domain: str) -> dict | None:
+    """Parse a cluster-internal service domain.
+
+    Returns {"service": ..., "namespace": ..., "cluster_dns": ...} or None.
+    """
+    m = _CLUSTER_SVC_RE.match(domain)
+    if not m:
+        return None
+    return {
+        "service": m.group("service"),
+        "namespace": m.group("namespace"),
+        "cluster_dns": m.group("cluster_dns") or "",
+    }
+
+
+def is_cluster_service(domain: str) -> bool:
+    """Check if a domain is a cluster-internal service."""
+    return parse_cluster_service(domain) is not None
+
+
+async def get_cluster_egress_from_argocd() -> list[dict]:
+    """Read current squidClusterEgress from ArgoCD app inline values."""
+    try:
+        data = await _get_argocd_app()
+    except Exception as e:
+        logger.error(f"Failed to get ArgoCD app: {e}")
+        return []
+
+    inline_values = data.get("spec", {}).get("source", {}).get("helm", {}).get("values", "")
+    if not inline_values:
+        return []
+
+    try:
+        parsed = yaml.safe_load(inline_values)
+        return parsed.get("egress", {}).get("squidClusterEgress", []) or []
+    except Exception:
+        return []
+
+
+async def add_cluster_egress(namespace: str, port: int) -> dict:
+    """Add a squidClusterEgress entry + domain whitelist in one operation."""
+    try:
+        data = await _get_argocd_app()
+        helm = data["spec"]["source"].setdefault("helm", {})
+        inline_values = helm.get("values", "")
+
+        parsed = yaml.safe_load(inline_values) or {}
+        egress = parsed.setdefault("egress", {})
+        cluster_egress = egress.setdefault("squidClusterEgress", []) or []
+
+        # Check if already exists
+        for entry in cluster_egress:
+            if entry.get("namespace") == namespace and entry.get("port") == port:
+                return {"status": "exists"}
+
+        cluster_egress.append({"namespace": namespace, "port": port})
+        egress["squidClusterEgress"] = cluster_egress
+        parsed["egress"] = egress
+
+        helm["values"] = yaml.dump(parsed, default_flow_style=False, allow_unicode=True)
+        await _put_argocd_app(data)
+        logger.info(f"Added cluster egress: {namespace}:{port}")
+        return {"status": "added"}
+    except Exception as e:
+        logger.error(f"Failed to add cluster egress: {e}")
+        raise
+
+
+async def remove_cluster_egress(namespace: str, port: int) -> dict:
+    """Remove a squidClusterEgress entry."""
+    try:
+        data = await _get_argocd_app()
+        helm = data["spec"]["source"].setdefault("helm", {})
+        inline_values = helm.get("values", "")
+
+        parsed = yaml.safe_load(inline_values) or {}
+        cluster_egress = parsed.get("egress", {}).get("squidClusterEgress", []) or []
+
+        new_list = [e for e in cluster_egress if not (e.get("namespace") == namespace and e.get("port") == port)]
+        if len(new_list) == len(cluster_egress):
+            return {"status": "not_found"}
+
+        parsed["egress"]["squidClusterEgress"] = new_list
+        helm["values"] = yaml.dump(parsed, default_flow_style=False, allow_unicode=True)
+        await _put_argocd_app(data)
+        logger.info(f"Removed cluster egress: {namespace}:{port}")
+        return {"status": "removed"}
+    except Exception as e:
+        logger.error(f"Failed to remove cluster egress: {e}")
+        raise

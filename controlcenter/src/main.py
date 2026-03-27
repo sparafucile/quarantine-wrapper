@@ -49,6 +49,11 @@ class BypassAction(BaseModel):
     duration_minutes: int
 
 
+class ClusterEgressAction(BaseModel):
+    namespace: str
+    port: int
+
+
 # --- API Routes ---
 
 @app.get("/api/info")
@@ -122,9 +127,67 @@ async def get_denied_domains():
     """Get domains denied by Squid from pod logs."""
     try:
         denied = await squid_parser.get_denied_domains()
+        # Annotate cluster-service domains
+        for entry in denied:
+            parsed = gitea_client.parse_cluster_service(entry.get("domain", ""))
+            if parsed:
+                entry["is_cluster_service"] = True
+                entry["cluster_namespace"] = parsed["namespace"]
+                entry["cluster_service"] = parsed["service"]
+            else:
+                entry["is_cluster_service"] = False
         return {"denied": denied, "count": len(denied)}
     except Exception as e:
         logger.error(f"Failed to get denied domains: {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/cluster-egress")
+async def get_cluster_egress():
+    """Get current squidClusterEgress entries."""
+    try:
+        entries = await gitea_client.get_cluster_egress_from_argocd()
+        return {"entries": entries, "count": len(entries)}
+    except Exception as e:
+        logger.error(f"Failed to get cluster egress: {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/cluster-egress/add")
+async def add_cluster_egress(action: ClusterEgressAction):
+    """Add cluster-service egress (NetworkPolicy + domain whitelist)."""
+    ns = action.namespace.strip().lower()
+    port = action.port
+    if not ns or port < 1 or port > 65535:
+        raise HTTPException(400, "Valid namespace and port required")
+
+    try:
+        # Step 1: Add squidClusterEgress (NetworkPolicy + Squid Safe_ports)
+        result = await gitea_client.add_cluster_egress(ns, port)
+
+        # Step 2: Also whitelist the .svc domain pattern for Squid ACL
+        svc_domain = f".{ns}.svc.{config.CLUSTER_DNS}"
+        await gitea_client.add_domain_to_whitelist(svc_domain)
+
+        # Step 3: Trigger ArgoCD sync
+        sync_result = await argocd_client.trigger_sync()
+        return {"status": result["status"], "namespace": ns, "port": port, "sync": sync_result}
+    except Exception as e:
+        logger.error(f"Failed to add cluster egress: {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/cluster-egress/remove")
+async def remove_cluster_egress(action: ClusterEgressAction):
+    """Remove cluster-service egress."""
+    try:
+        result = await gitea_client.remove_cluster_egress(action.namespace, action.port)
+        if result["status"] == "not_found":
+            return {"status": "not_found"}
+        sync_result = await argocd_client.trigger_sync()
+        return {"status": result["status"], "sync": sync_result}
+    except Exception as e:
+        logger.error(f"Failed to remove cluster egress: {e}")
         raise HTTPException(500, str(e))
 
 

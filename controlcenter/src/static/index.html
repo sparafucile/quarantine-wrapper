@@ -382,10 +382,19 @@ function renderDenied() {
   tbody.innerHTML = deniedCache.slice(-100).reverse().map(d => {
     const released = releasedDomains.has(d.domain);
     const cls = released ? ' class="released"' : '';
-    const btn = released
-      ? `<span class="badge badge-ok">freigegeben</span>`
-      : `<button class="btn-ok btn-sm" onclick="addDomainDirect('${esc(d.domain)}')">Freigeben</button>`;
-    return `<tr${cls}><td style="font-size:0.75rem">${esc(d.timestamp)}</td><td><code>${esc(d.domain)}</code></td><td style="font-size:0.75rem">${esc(d.client)}</td><td>${esc(d.method)}</td><td>${btn}</td></tr>`;
+    const isCluster = d.is_cluster_service || false;
+    const clusterBadge = isCluster ? ` <span class="badge badge-info" title="Cluster-Service: ${esc(d.cluster_namespace||'')}/${esc(d.cluster_service||'')}">Cluster</span>` : '';
+    let btn;
+    if (released) {
+      btn = `<span class="badge badge-ok">freigegeben</span>`;
+    } else if (isCluster) {
+      const ns = esc(d.cluster_namespace || '');
+      const port = d.url ? parseInt(d.url.split(':').pop()) || 0 : 0;
+      btn = `<button class="btn-ok btn-sm" style="background:#6366f1" onclick="addClusterEgress('${ns}', ${port}, '${esc(d.domain)}')">Cluster freigeben</button>`;
+    } else {
+      btn = `<button class="btn-ok btn-sm" onclick="addDomainDirect('${esc(d.domain)}')">Freigeben</button>`;
+    }
+    return `<tr${cls}><td style="font-size:0.75rem">${esc(d.timestamp)}</td><td><code>${esc(d.domain)}</code>${clusterBadge}</td><td style="font-size:0.75rem">${esc(d.client)}</td><td>${esc(d.method)}</td><td>${btn}</td></tr>`;
   }).join('');
 }
 
@@ -395,6 +404,23 @@ async function addDomainDirect(domain) {
     await api('/api/whitelist/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
     releasedDomains.add(domain);
     renderDenied();
+  } catch(e) {
+    showSyncStatus('error', e.message);
+  }
+}
+
+async function addClusterEgress(namespace, port, domain) {
+  if (!port) {
+    port = parseInt(prompt(`Port fuer ${namespace}?`, '8742'));
+    if (!port) return;
+  }
+  if (!confirm(`Cluster-Service freigeben?\n\nNamespace: ${namespace}\nPort: ${port}\n\nErstellt NetworkPolicy + Squid-Freigabe.`)) return;
+  showSyncStatus('committed');
+  try {
+    await api('/api/cluster-egress/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({namespace, port})});
+    releasedDomains.add(domain);
+    renderDenied();
+    pollSync();
   } catch(e) {
     showSyncStatus('error', e.message);
   }
