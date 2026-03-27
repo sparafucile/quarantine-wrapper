@@ -2,7 +2,7 @@
 import os
 
 # Namespace detection
-APP_NAME = os.getenv("APP_NAME", "openclaw")
+APP_NAME = os.getenv("APP_NAME", "example")
 APP_NAMESPACE = os.getenv("APP_NAMESPACE", f"{APP_NAME}-quarantine")
 GW_NAMESPACE = os.getenv("GW_NAMESPACE", f"{APP_NAME}-quarantine-gw")
 CLUSTER_DNS = os.getenv("CLUSTER_DNS", "p-k8s-cluster.local")
