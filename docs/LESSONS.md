@@ -76,21 +76,9 @@ Die `allow-egress-to-proxy` NetworkPolicy im Quarantine-Namespace muss den **ers
 
 **Fix:** `NODE_USE_ENV_PROXY=1` als Environment-Variable setzen. Ist im `proxyEnv` Helm-Helper enthalten und wird automatisch an alle Pods verteilt.
 
-### Smart Merge fuer openclaw.json
-
-**Problem:** OpenClaw modifiziert `openclaw.json` zur Laufzeit (auth tokens, channel configs, device pairings, model auto-migration). Ein blindes Ueberschreiben per ConfigMap bei Pod-Restart zerstoert diese Runtime-Daten.
-
-**Fix:** initContainer `merge-config` (python:3.12-slim) fuehrt selektiven Merge durch: GitOps-kontrollierte Keys (models, gateway.port/bind/mode/controlUi, agents.defaults.model) werden aus ConfigMap ueberschrieben, Runtime-Keys (gateway.auth, channels, devices, meta, commands) bleiben erhalten. Bei Erstinstallation wird die volle ConfigMap kopiert. Backup als `openclaw.json.pre-merge` vor jedem Merge.
-
 ---
 
 ## v1.6.1
-
-### CLI-Tools in Quarantine-Pods
-
-**Problem:** Im OpenClaw-Container (non-root, UID 1000) kann weder `apt-get install` (braucht root) noch `apk add` (falsches Base-Image) ausgefuehrt werden.
-
-**Fix:** Zwei initContainers: (1) `install-tools` (Alpine) kopiert busybox und erstellt Symlinks fuer vi, less, grep, sed, awk, wget etc. (2) `install-nano` (OpenClaw-Image mit `securityContext.runAsUser: 0`) installiert nano via apt-get und kopiert das Binary. Beide schreiben in ein emptyDir-Volume, das als `/usr/local/tools` readonly in den Haupt-Container gemountet wird. Braucht `deb.debian.org` + `security.debian.org` in der Squid-Whitelist.
 
 ### Recreate-Strategie bei RWO-PVCs
 
