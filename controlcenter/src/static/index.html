@@ -109,6 +109,7 @@ tr.released td { opacity: 0.5; text-decoration: line-through; }
           <option value="apt">apt/Debian</option>
           <option value="docker">Docker Hub</option>
           <option value="github">GitHub API</option>
+          <option value="ai-security">AI Security Pipeline</option>
         </select>
         <span style="flex:1"></span>
         <select id="bypass-duration">
@@ -449,11 +450,52 @@ const PKG_TEMPLATES = {
   github: ['api.github.com', 'github.com', 'raw.githubusercontent.com', 'objects.githubusercontent.com'],
 };
 
+// --- AI Security Pipeline Template (Cluster-Egress + Domain-Whitelist) ---
+// Unified Pipeline: Client -> LiteLLM -> SecureVector -> Provider
+// LiteLLM ist der Haupteingangspunkt fuer alle LLM-Anfragen.
+// SecureVector wird von LiteLLM intern angesprochen (kann aber auch direkt genutzt werden).
+const AI_SECURITY_TEMPLATE = {
+  clusterEgress: [
+    {namespace: 'litellm', port: 4000, desc: 'LiteLLM LLM-Proxy (Haupteingangspunkt)'},
+    {namespace: 'securevector', port: 8742, desc: 'SecureVector AI-Firewall (72 Regeln)'},
+  ],
+  domains: [
+    'litellm.litellm.svc.p-k8s-cluster.local',
+    'securevector-proxy.securevector.svc.p-k8s-cluster.local',
+  ],
+};
+
 async function applyTemplate() {
   const sel = document.getElementById('pkg-template');
   const tpl = sel.value;
-  if (!tpl || !PKG_TEMPLATES[tpl]) return;
   sel.value = '';
+
+  // AI Security Pipeline: Combined Cluster-Egress + Domain-Whitelist
+  if (tpl === 'ai-security') {
+    const ce = AI_SECURITY_TEMPLATE.clusterEgress;
+    const dm = AI_SECURITY_TEMPLATE.domains;
+    const details = 'Cluster-Egress (NetworkPolicy + Squid):\n' +
+      ce.map(e => `  - ${e.namespace}:${e.port} (${e.desc})`).join('\n') +
+      '\n\nDomain-Whitelist:\n' +
+      dm.map(d => `  - ${d}`).join('\n');
+    if (!confirm(`AI Security Pipeline freigeben?\n\n${details}`)) return;
+    showSyncStatus('committed');
+    for (const entry of ce) {
+      try {
+        await api('/api/cluster-egress/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({namespace: entry.namespace, port: entry.port})});
+      } catch(e) { console.error(`Failed to add cluster egress ${entry.namespace}:${entry.port}:`, e); }
+    }
+    for (const domain of dm) {
+      try {
+        await api('/api/whitelist/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
+      } catch(e) { console.error(`Failed to add domain ${domain}:`, e); }
+    }
+    await refreshWhitelist();
+    return;
+  }
+
+  // Standard domain-only templates
+  if (!tpl || !PKG_TEMPLATES[tpl]) return;
   const domains = PKG_TEMPLATES[tpl];
   if (!confirm(`${tpl.toUpperCase()} Domains hinzufuegen?\n\n${domains.join('\n')}`)) return;
   showSyncStatus('committed');
