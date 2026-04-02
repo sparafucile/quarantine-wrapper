@@ -1,0 +1,9 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/openvex.json",
+  "author": "Andreas Braunmiller <andreas@sparafucile.net>",
+  "timestamp": "2026-04-02T00:00:00Z",
+  "version": 1,
+  "tooling": "vexctl/0.4.1",
+  "statements": []
+}
