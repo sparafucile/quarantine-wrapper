@@ -1,10 +1,10 @@
 {
   "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-04-11T06:13:29Z",
+  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-04-13T06:28:22Z",
   "author": "vex-system/vex-pr-generator",
   "role": "automated-pipeline",
-  "timestamp": "2026-04-11T06:13:29Z",
-  "version": 2,
+  "timestamp": "2026-04-13T06:28:22Z",
+  "version": 3,
   "statements": [
     {
       "vulnerability": {
@@ -643,6 +643,60 @@
       "status": "not_affected",
       "justification": "vulnerable_code_not_present",
       "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-28390"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/openclaw-quarantine-wrapper@3.5.4-1~deb13u1",
+          "subcomponents": [
+            {
+              "@id": "pkg:libssl3t64@3.5.4-1~deb13u1"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "openssl: OpenSSL: Denial of Service due to NULL pointer dereference in CMS EnvelopedData processing\n**Fixed version:** 3.5.5-1~deb13u2\n\n**container.name:** install-ca\n**resource.kind:** ReplicaSet\n**r"
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-28390"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/openclaw-quarantine-wrapper@3.5.5-1~deb13u1",
+          "subcomponents": [
+            {
+              "@id": "pkg:libssl3t64@3.5.5-1~deb13u1"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "openssl: OpenSSL: Denial of Service due to NULL pointer dereference in CMS EnvelopedData processing\n**Fixed version:** 3.5.5-1~deb13u2\n\n**container.name:** controlcenter\n**resource.kind:** ReplicaSet\n"
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-28390"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/openclaw-quarantine-wrapper@3.5.5-r0",
+          "subcomponents": [
+            {
+              "@id": "pkg:libcrypto3@3.5.5-r0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "openssl: OpenSSL: Denial of Service due to NULL pointer dereference in CMS EnvelopedData processing\n**Fixed version:** 3.5.6-r0\n\n**container.name:** controlcenter\n**resource.kind:** ReplicaSet\n**resou"
     }
   ]
 }
