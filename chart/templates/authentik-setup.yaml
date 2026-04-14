@@ -401,6 +401,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: authentik-setup
+        app.kubernetes.io/component: authentik-setup
     spec:
       serviceAccountName: authentik-setup
       restartPolicy: OnFailure
