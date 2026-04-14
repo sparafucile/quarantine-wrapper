@@ -116,6 +116,7 @@ mitmproxy:
       cpu: "1000m"
   authentik:
     enabled: true              # mitmweb hinter Authentik
+    accessGroup: ""            # Optional: Authentik Group-Name fuer Policy-Binding (z.B. "mitmweb-access")
 
 # ============================================================
 # CA-ZERTIFIKAT (mitmproxy TLS-Interception)
@@ -176,7 +177,7 @@ authentik:
   # API-Credentials fuer automatische Provider-Erstellung (Phase 5)
   apiTokenSecret: ""           # K8s Secret mit Authentik API-Token (Default: authentik-api-token)
   openbaoPath: ""              # Default: infra/authentik/api-token (shared)
-  outpostPk: 1                 # Primary Key des Embedded Outpost
+  outpostPk: "17881187-7d54-4cea-a9a7-9b5213980eea"  # UUID des Embedded Outpost
   # v2: Externe Apps die im Quarantine-Namespace deployt werden
   # Der Wrapper erstellt Authentik Proxy Provider + Application fuer jede App.
   # Apps deployen ihre eigenen Services/HTTPRoutes — hier wird nur die

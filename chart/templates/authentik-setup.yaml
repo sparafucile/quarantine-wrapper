@@ -6,6 +6,7 @@
 # - Proxy-Provider fuer jeden Service mit authentik.enabled: true
 # - Proxy-Provider fuer mitmweb (wenn mitmproxy.authentik.enabled: true)
 # - Application pro Provider (Gruppe: Quarantine)
+# - Policy-Binding Application <-> Access-Group (wenn access-group annotation gesetzt)
 # - PATCH des Embedded Outpost (providers-Array aktualisieren)
 # ============================================================================
 
@@ -20,9 +21,9 @@ metadata:
 data:
   setup-authentik.py: |
     #!/usr/bin/env python3
-    """Idempotent Authentik Proxy-Provider + Application Setup.
+    """Idempotent Authentik Proxy-Provider + Application + Policy-Binding Setup.
     Laeuft als PostSync-Job nach jedem ArgoCD Sync."""
-    import urllib.request, json, ssl, os, sys, socket
+    import urllib.request, urllib.parse, json, ssl, os, sys, socket
 
     # Unbuffered output
     sys.stdout.reconfigure(line_buffering=True)
@@ -66,7 +67,8 @@ data:
         except FileNotFoundError:
             print("ERROR: No K8s SA token — cannot poll for Secret")
             sys.exit(1)
-    OUTPOST_PK = int(os.environ.get("OUTPOST_PK", "{{ .Values.authentik.outpostPk }}"))
+    # Outpost PK is a UUID string (not an integer!)
+    OUTPOST_PK = os.environ.get("OUTPOST_PK", "{{ .Values.authentik.outpostPk }}")
     HTTP_TIMEOUT = 15  # seconds
 
     print(f"Authentik URL: {AUTHENTIK_URL}")
@@ -100,15 +102,17 @@ data:
             "external_host": "https://{{ include "quarantine-wrapper.mitmwebHostname" . }}",
             "internal_host": "http://mitmproxy.{{ include "quarantine-wrapper.gwNamespace" . }}.svc.{{ .Values.clusterDNS }}:{{ .Values.mitmproxy.webPort }}",
             "skip_path_regex": "",
+            "access_group": "{{ .Values.mitmproxy.authentik.accessGroup | default "" }}",
         },
     {{- end }}
     ]
 
     # --- Dynamische Service-Discovery aus App- UND GW-Namespace ---
     # Services die einen Authentik Proxy Provider benoetigen, setzen:
-    #   Label: quarantine.sparafucile.net/authentik: "true"
+    #   Label:      quarantine.sparafucile.net/authentik: "true"
     #   Annotation: quarantine.sparafucile.net/external-host: "https://p-<app>-k8s.sparafucile.net"
     #   Annotation: quarantine.sparafucile.net/skip-path-regex: "" (optional)
+    #   Annotation: quarantine.sparafucile.net/access-group: "<authentik-group-name>" (optional)
     GW_NAMESPACE = "{{ include "quarantine-wrapper.gwNamespace" . }}"
     DISCOVERY_NAMESPACES = [APP_NAMESPACE, GW_NAMESPACE]
 
@@ -137,6 +141,7 @@ data:
                 annotations = svc["metadata"].get("annotations", {})
                 external_host = annotations.get("quarantine.sparafucile.net/external-host", "")
                 skip_regex = annotations.get("quarantine.sparafucile.net/skip-path-regex", "")
+                access_group = annotations.get("quarantine.sparafucile.net/access-group", "")
 
                 if not external_host:
                     print(f"  SKIP {svc_name}: missing external-host annotation")
@@ -154,12 +159,13 @@ data:
 
                 internal_host = f"http://{svc_name}.{disco_ns}.svc.{K8S_CLUSTER_DOMAIN}:{port}"
 
-                print(f"  Discovered: {provider_name} -> {external_host} (internal: {internal_host})")
+                print(f"  Discovered: {provider_name} -> {external_host} (internal: {internal_host}, access_group: {access_group or '<none>'})")
                 SERVICES.append({
                     "name": provider_name,
                     "external_host": external_host,
                     "internal_host": internal_host,
                     "skip_path_regex": skip_regex,
+                    "access_group": access_group,
                 })
 
     except FileNotFoundError:
@@ -202,6 +208,39 @@ data:
         result = api_call("GET", f"/api/v3/core/applications/{slug}/")
         return result
 
+    def find_group_by_name(name):
+        """Look up an Authentik group by exact name. Returns group dict or None."""
+        if not name:
+            return None
+        result = api_call("GET", f"/api/v3/core/groups/?search={urllib.parse.quote(name)}")
+        for g in result.get("results", []):
+            if g.get("name") == name:
+                return g
+        return None
+
+    def ensure_policy_binding(app_pk, group_pk):
+        """Idempotent: ensure a binding (target=app, group=group, order=0, enabled=true) exists."""
+        # Authentik API: GET /api/v3/policies/bindings/?target=<uuid> — filters by target
+        existing = api_call("GET", f"/api/v3/policies/bindings/?target={app_pk}")
+        for b in (existing or {}).get("results", []):
+            if b.get("group") == group_pk:
+                # Ensure enabled + order=0
+                if b.get("enabled") and b.get("order") == 0:
+                    print(f"    Binding already exists (pk={b['pk']}), OK")
+                    return b
+                print(f"    Binding exists but needs update (pk={b['pk']})")
+                return api_call("PATCH", f"/api/v3/policies/bindings/{b['pk']}/", {
+                    "enabled": True, "order": 0,
+                })
+        # Create new binding
+        print(f"    Creating policy binding: app={app_pk} group={group_pk}")
+        return api_call("POST", "/api/v3/policies/bindings/", {
+            "target": app_pk,
+            "group": group_pk,
+            "order": 0,
+            "enabled": True,
+        })
+
     # Flows laden (authorization + invalidation)
     print("\n=== Loading Authentik Flows ===")
     auth_flow = None
@@ -219,11 +258,15 @@ data:
         print("  ERROR: Could not find required flows!")
         sys.exit(1)
 
+    # Cache fuer Gruppen-Lookups (optimiert Mehrfach-Services mit gleicher Gruppe)
+    group_cache = {}
+
     created_provider_pks = []
 
     for svc in SERVICES:
         name = svc["name"]
-        print(f"\n=== Processing: {name} ===")
+        access_group_name = svc.get("access_group", "")
+        print(f"\n=== Processing: {name} (access_group: {access_group_name or '<none>'}) ===")
 
         # 1. Provider erstellen/aktualisieren
         provider = find_provider(name)
@@ -260,37 +303,56 @@ data:
             "group": "Quarantine",
         }
 
+        app_pk = None
         if app:
             print(f"  Application exists, updating...")
-            api_call("PATCH", f"/api/v3/core/applications/{slug}/", app_data)
+            updated = api_call("PATCH", f"/api/v3/core/applications/{slug}/", app_data)
+            app_pk = (updated or {}).get("pk") or app.get("pk")
         else:
             print(f"  Creating application...")
             try:
-                api_call("POST", "/api/v3/core/applications/", app_data)
-                print(f"  Created application: {slug}")
+                created = api_call("POST", "/api/v3/core/applications/", app_data)
+                app_pk = (created or {}).get("pk")
+                print(f"  Created application: {slug} (pk={app_pk})")
             except urllib.error.HTTPError as e:
                 if e.code == 400:
                     # Provider already linked to another application (different slug from earlier deployment).
-                    # Find the existing application by searching all apps for this provider PK.
                     print(f"  Provider already linked — searching for existing application...")
                     all_apps = api_call("GET", f"/api/v3/core/applications/?provider={provider_pk}")
                     for existing in (all_apps or {}).get("results", []):
                         old_slug = existing["slug"]
                         print(f"  Found existing app: {old_slug} (pk={existing.get('pk','')}), updating...")
-                        api_call("PATCH", f"/api/v3/core/applications/{old_slug}/", app_data)
+                        updated = api_call("PATCH", f"/api/v3/core/applications/{old_slug}/", app_data)
+                        app_pk = (updated or {}).get("pk") or existing.get("pk")
                         break
                     else:
                         print(f"  WARNING: Could not find linked application, skipping")
                 else:
                     raise
 
-    # 3. Embedded Outpost aktualisieren
+        # 3. Policy-Binding Application <-> Access-Group
+        if access_group_name and app_pk:
+            print(f"  Ensuring policy-binding: app={slug} group={access_group_name}")
+            if access_group_name not in group_cache:
+                grp = find_group_by_name(access_group_name)
+                if not grp:
+                    print(f"    WARNING: Group '{access_group_name}' not found — skipping binding!")
+                    group_cache[access_group_name] = None
+                else:
+                    group_cache[access_group_name] = grp
+            grp = group_cache[access_group_name]
+            if grp:
+                ensure_policy_binding(app_pk, grp["pk"])
+        elif access_group_name and not app_pk:
+            print(f"  WARNING: access-group set but app_pk unknown — skipping binding")
+
+    # 4. Embedded Outpost aktualisieren
     if created_provider_pks:
         print(f"\n=== Updating Embedded Outpost ===")
         # Auto-discover: Embedded Outpost finden
         outpost = None
         outpost_pk = None
-        # Erst per konfiguriertem PK versuchen
+        # Erst per konfiguriertem PK (UUID string) versuchen
         if OUTPOST_PK:
             outpost = api_call("GET", f"/api/v3/outposts/instances/{OUTPOST_PK}/")
             if outpost:

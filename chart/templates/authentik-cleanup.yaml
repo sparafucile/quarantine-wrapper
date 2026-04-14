@@ -5,7 +5,7 @@
 # Entfernt beim Loeschen der Wrapper-App automatisch:
 # - Alle Authentik Proxy Provider die fuer Services in diesem Namespace
 #   erstellt wurden (dynamisch entdeckt + mitmweb)
-# - Zugehoerige Applications
+# - Zugehoerige Applications (inkl. zugehoeriger Policy-Bindings)
 # - Provider-Referenzen aus dem Embedded Outpost
 # ============================================================================
 
@@ -23,7 +23,7 @@ metadata:
 data:
   cleanup-authentik.py: |
     #!/usr/bin/env python3
-    """Cleanup: Entfernt Authentik Provider + Applications beim Loeschen."""
+    """Cleanup: Entfernt Authentik Provider + Applications + Policy-Bindings beim Loeschen."""
     import urllib.request, json, ssl, os, sys
 
     sys.stdout.reconfigure(line_buffering=True)
@@ -33,7 +33,8 @@ data:
     APP_NAME = "{{ .Values.appName }}"
     APP_NAMESPACE = "{{ include "quarantine-wrapper.appNamespace" . }}"
     K8S_CLUSTER_DOMAIN = "{{ .Values.clusterDNS }}"
-    OUTPOST_PK = int(os.environ.get("OUTPOST_PK", "{{ .Values.authentik.outpostPk }}"))
+    # Outpost PK is a UUID string (not integer)
+    OUTPOST_PK = os.environ.get("OUTPOST_PK", "{{ .Values.authentik.outpostPk }}")
 
     print(f"Cleanup for: {APP_NAME} (namespace: {APP_NAMESPACE})")
 
@@ -61,8 +62,6 @@ data:
             return None
 
     # 1. Alle Provider finden die zu unserem Namespace gehoeren
-    #    Suche nach APP_NAMESPACE-Prefix (z.B. "<appName>-quarantine-") UND
-    #    nach Legacy APP_NAME-Prefix (z.B. "<appName>-") fuer Rueckwaertskompatibilitaet
     GW_NAMESPACE = "{{ include "quarantine-wrapper.gwNamespace" . }}"
     prefixes = [f"{APP_NAMESPACE}-", f"{GW_NAMESPACE}-"]
     if APP_NAME != APP_NAMESPACE:
@@ -76,15 +75,25 @@ data:
                 print(f"  Found: {p['name']} (pk={p['pk']})")
                 provider_pks_to_remove.append(p["pk"])
 
-    # 2. Applications loeschen
-    print(f"\n=== Deleting applications ===")
+    # 2. Applications loeschen (inkl. Policy-Bindings die auf die Application zeigen)
+    print(f"\n=== Deleting applications + their policy-bindings ===")
     for pk in provider_pks_to_remove:
         # Provider-Name als Slug verwenden
         provider = api_call("GET", f"/api/v3/providers/proxy/{pk}/")
-        if provider:
-            slug = provider["name"]
-            print(f"  Deleting application: {slug}")
-            api_call("DELETE", f"/api/v3/core/applications/{slug}/")
+        if not provider:
+            continue
+        slug = provider["name"]
+        # Application holen um ihre pk zu erfahren
+        app = api_call("GET", f"/api/v3/core/applications/{slug}/")
+        if app:
+            app_pk = app.get("pk")
+            # Policy-Bindings fuer diese App loeschen
+            bindings = api_call("GET", f"/api/v3/policies/bindings/?target={app_pk}")
+            for b in (bindings or {}).get("results", []):
+                print(f"  Deleting policy-binding pk={b['pk']} (app={slug})")
+                api_call("DELETE", f"/api/v3/policies/bindings/{b['pk']}/")
+        print(f"  Deleting application: {slug}")
+        api_call("DELETE", f"/api/v3/core/applications/{slug}/")
 
     # 3. Provider loeschen
     print(f"\n=== Deleting providers ===")
