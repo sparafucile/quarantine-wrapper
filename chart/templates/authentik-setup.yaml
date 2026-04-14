@@ -393,14 +393,14 @@ metadata:
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
   labels:
     {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
-    app.kubernetes.io/component: authentik-setup
+    app.kubernetes.io/name: authentik-setup
 spec:
   backoffLimit: 3
   activeDeadlineSeconds: 120
   template:
     metadata:
       labels:
-        app.kubernetes.io/component: authentik-setup
+        app.kubernetes.io/name: authentik-setup
     spec:
       serviceAccountName: authentik-setup
       restartPolicy: OnFailure
