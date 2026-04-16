@@ -93,7 +93,7 @@ mitmproxy:
   enabled: true
   image:
     repository: mitmproxy/mitmproxy
-    tag: "12.2.1"
+    tag: "12.2.2"
   proxyPort: 8080
   webPort: 8081
   hostname: ""                 # Default: p-<appName>-mitmweb-k8s.sparafucile.net
