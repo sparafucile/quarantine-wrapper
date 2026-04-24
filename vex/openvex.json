@@ -1,10 +1,10 @@
 {
   "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-04-19T14:36:29Z",
+  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-04-24T06:58:31Z",
   "author": "vex-system/vex-pr-generator",
   "role": "automated-pipeline",
-  "timestamp": "2026-04-19T14:36:29Z",
-  "version": 6,
+  "timestamp": "2026-04-24T06:58:31Z",
+  "version": 7,
   "statements": [
     {
       "vulnerability": {
@@ -2816,6 +2816,48 @@
           "subcomponents": [
             {
               "@id": "pkg:apk/alpine/curl@8.17.0-r1?arch=x86_64&distro=alpine-3.23.4"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://security.alpinelinux.org/vuln/CVE-2026-4367",
+        "aliases": [
+          "CVE-2026-4367"
+        ],
+        "name": "CVE-2026-4367"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:0272e4604ed93c1792f03695a033a6e8546840f86e0de20a884bb17d2c924883?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libxpm@3.5.17-r0?arch=x86_64&distro=alpine-3.23.4"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://nvd.nist.gov/vuln/detail/CVE-2026-4775",
+        "description": "A flaw was found in the libtiff library. A remote attacker could exploit a signed integer overflow vulnerability in the putcontig8bitYCbCr44tile function by providing a specially crafted TIFF file. This flaw can lead to an out-of-bounds heap write due to incorrect memory pointer calculations, potentially causing a denial of service (application crash) or arbitrary code execution.",
+        "name": "CVE-2026-4775"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:0272e4604ed93c1792f03695a033a6e8546840f86e0de20a884bb17d2c924883?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/tiff@4.7.1-r0?arch=x86_64&distro=alpine-3.23.4"
             }
           ]
         }
