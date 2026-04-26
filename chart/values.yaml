@@ -62,7 +62,7 @@ egress:
   # BEIDE Listen muessen parallel gepflegt werden!
   # Beispiel:
   #   noProxyHosts: ["matrix.sparafucile.net"]
-  #   directEgressCIDRs: ["65.21.253.11/32"]
+  #   directEgressCIDRs: ["192.168.4.131/32"]   # cluster nginx-gateway-proxy
   noProxyHosts: []
   directEgressCIDRs: []
 
