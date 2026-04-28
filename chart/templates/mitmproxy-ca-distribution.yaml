@@ -156,6 +156,7 @@ metadata:
   labels:
     {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
     app.kubernetes.io/component: ca-distribution
+    trivy-scan-skip: "true" 
 spec:
   schedule: "0 */6 * * *"
   successfulJobsHistoryLimit: 1
@@ -171,6 +172,7 @@ spec:
         metadata:
           labels:
             app.kubernetes.io/component: ca-distribution
+            trivy-scan-skip: "true"
         spec:
           serviceAccountName: ca-distributor
           restartPolicy: OnFailure
