@@ -1,10 +1,10 @@
 {
   "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-07-22T06:35:19Z",
+  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-07-23T06:37:44Z",
   "author": "vex-system/vex-pr-generator",
   "role": "automated-pipeline",
-  "timestamp": "2026-07-22T06:35:19Z",
-  "version": 11,
+  "timestamp": "2026-07-23T06:37:44Z",
+  "version": 12,
   "statements": [
     {
       "vulnerability": {
@@ -3657,6 +3657,42 @@
       "status": "not_affected",
       "justification": "vulnerable_code_not_present",
       "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-59885"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/openclaw-quarantine-wrapper@0.6.3",
+          "subcomponents": [
+            {
+              "@id": "pkg:pyasn1@0.6.3"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "pyasn1 is a generic ASN.1 library for Python. Prior to 0.6.4, the BER, ...\n**Fixed version:** 0.6.4\n\n**container.name:** install-ca\n**resource.kind:** ReplicaSet\n**resource.name:** mitmproxy-debug-67b"
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-59886"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/openclaw-quarantine-wrapper@0.6.3",
+          "subcomponents": [
+            {
+              "@id": "pkg:pyasn1@0.6.3"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "pyasn1: pyasn1: Denial of Service via crafted ASN.1 REAL values\n**Fixed version:** 0.6.4\n\n**container.name:** install-ca\n**resource.kind:** ReplicaSet\n**resource.name:** mitmproxy-debug-67bfd44c5c\n**r"
     }
   ]
 }
