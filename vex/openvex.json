@@ -1,10 +1,10 @@
 {
   "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-07-23T06:37:44Z",
+  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-07-27T06:15:08Z",
   "author": "vex-system/vex-pr-generator",
   "role": "automated-pipeline",
-  "timestamp": "2026-07-23T06:37:44Z",
-  "version": 12,
+  "timestamp": "2026-07-27T06:15:08Z",
+  "version": 13,
   "statements": [
     {
       "vulnerability": {
@@ -3693,6 +3693,24 @@
       "status": "not_affected",
       "justification": "vulnerable_code_not_in_execute_path",
       "impact_statement": "pyasn1: pyasn1: Denial of Service via crafted ASN.1 REAL values\n**Fixed version:** 0.6.4\n\n**container.name:** install-ca\n**resource.kind:** ReplicaSet\n**resource.name:** mitmproxy-debug-67bfd44c5c\n**r"
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-57585"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/openclaw-quarantine-wrapper@1.1.2",
+          "subcomponents": [
+            {
+              "@id": "pkg:msgpack@1.1.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "MessagePack for Python: Out-of-bounds read / crash on Unpacker reuse after a caught error\n**Fixed version:** 1.2.1\n\n**container.name:** install-ca\n**resource.kind:** ReplicaSet\n**resource.name:** mitm"
     }
   ]
 }
