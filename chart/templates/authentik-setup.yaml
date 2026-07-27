@@ -219,25 +219,40 @@ data:
         return None
 
     def ensure_policy_binding(app_pk, group_pk):
-        """Idempotent: ensure a binding (target=app, group=group, order=0, enabled=true) exists."""
+        """Idempotent: ensure an ENABLED binding (target=app, group=group) exists.
+
+        Authentik erzwingt Unique(policy, target, order). 'order' darf daher NICHT
+        hart auf 0 gesetzt werden: sobald am selben Target bereits eine andere
+        Binding auf order=0 liegt, antwortet die API mit
+        400 {"non_field_errors":["The fields policy, target, order must make a
+        unique set."]} -> PostSync-Hook scheitert -> App bleibt OutOfSync.
+        (Health-Check 2026-07-27, App openclaw-quarantine-openclaw.)
+
+        Neu: bestehende Binding behaelt ihr 'order', wir erzwingen nur 'enabled';
+        neue Bindings bekommen den naechsten freien order-Slot.
+        """
         # Authentik API: GET /api/v3/policies/bindings/?target=<uuid> — filters by target
         existing = api_call("GET", f"/api/v3/policies/bindings/?target={app_pk}")
-        for b in (existing or {}).get("results", []):
+        results = (existing or {}).get("results", [])
+        used_orders = {b.get("order") for b in results if b.get("order") is not None}
+        for b in results:
             if b.get("group") == group_pk:
-                # Ensure enabled + order=0
-                if b.get("enabled") and b.get("order") == 0:
-                    print(f"    Binding already exists (pk={b['pk']}), OK")
+                if b.get("enabled"):
+                    print(f"    Binding already exists (pk={b['pk']}, order={b.get('order')}), OK")
                     return b
-                print(f"    Binding exists but needs update (pk={b['pk']})")
+                print(f"    Binding exists but disabled (pk={b['pk']}) — enabling (order bleibt {b.get('order')})")
                 return api_call("PATCH", f"/api/v3/policies/bindings/{b['pk']}/", {
-                    "enabled": True, "order": 0,
+                    "enabled": True,
                 })
-        # Create new binding
-        print(f"    Creating policy binding: app={app_pk} group={group_pk}")
+        # Create new binding — naechster freier order-Slot am selben Target
+        order = 0
+        while order in used_orders:
+            order += 1
+        print(f"    Creating policy binding: app={app_pk} group={group_pk} order={order}")
         return api_call("POST", "/api/v3/policies/bindings/", {
             "target": app_pk,
             "group": group_pk,
-            "order": 0,
+            "order": order,
             "enabled": True,
         })
 
