@@ -44,7 +44,17 @@ data:
     # eine spaetere Auswertung der tatsaechlich genutzten Ziele (z.B. um die
     # Domain-Whitelist wieder zu verengen) ist nicht moeglich.
     access_log daemon:/var/log/squid/access.log squid
-    access_log stdio:/dev/stdout squid
+    # KEIN zweites 'access_log stdio:/dev/stdout' (war bf43a5a, 2026-07-30).
+    # Squid laesst nach dem Wechsel auf cache_effective_user 'proxy' /dev/stdout
+    # nicht mehr oeffnen und bricht HART ab:
+    #   FATAL: Cannot open '/dev/stdout' for writing. ... Terminated abnormally.
+    # Folge: neues ReplicaSet in CrashLoopBackOff (17 Restarts), Deployment
+    # ProgressDeadlineExceeded, und damit haengt JEDER ArgoCD-Sync des Wrappers
+    # in "waiting for healthy state of apps/Deployment/squid-proxy" fest.
+    # Nur das alte ReplicaSet hat den Traffic weiter bedient - der Ausfall war
+    # deshalb unsichtbar, bis ein Sync gebraucht wurde.
+    # Wenn Squid-Logs nach Loki sollen: Sidecar auf /var/log/squid/access.log,
+    # nicht ein zweites Log-Ziel im selben Prozess.
     cache_log /var/log/squid/cache.log
     cache_dir ufs /var/spool/squid 1000 16 256
     maximum_object_size 512 MB
