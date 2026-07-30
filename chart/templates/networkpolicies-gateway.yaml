@@ -415,6 +415,38 @@ spec:
     {{- end }}
 {{- end }}
 
+{{- if .Values.egress.squidExtraEgress }}
+---
+# Squid -> feste IPs ausserhalb des Clusters (LAN/NAS/Appliances)
+# Notwendig fuer Ziele hinter Stub-Services mit manueller EndpointSlice:
+# squidClusterEgress erlaubt nur die ClusterIP VOR dem DNAT, danach steht als
+# Ziel die LAN-Adresse und das Default-Deny greift wieder (Squid -> 503).
+# Jeder Eintrag ist genau eine IP (/32) und genau ein Port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-squid-extra-egress
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: egress-proxy
+  policyTypes:
+    - Egress
+  egress:
+    {{- range .Values.egress.squidExtraEgress }}
+    # {{ .comment | default "kein Kommentar hinterlegt" }}
+    - to:
+        - ipBlock:
+            cidr: {{ .ip }}/32
+      ports:
+        - protocol: TCP
+          port: {{ .port }}
+    {{- end }}
+{{- end }}
+
 
 {{- if .Values.controlcenter.enabled }}
 ---

@@ -74,7 +74,8 @@ authentik:
 
 | Parameter | Default | Beschreibung |
 |-----------|---------|-------------|
-| `egress.squidAllowedDomains` | `[placeholder...]` | Domain-Whitelist fuer Squid (Default: Dummy-Domain, blockiert alles) |
+| `egress.squidAllowedDomains` | `[placeholder...]` | Domain-Whitelist fuer Squid (Default: Dummy-Domain, blockiert alles). **Leere Liste `[]` erlaubt ALLE Domains** — nur bewusst und befristet, z.B. um aus dem Access-Log die tatsaechlich genutzten Ziele zu ermitteln. |
+| `egress.squidExtraEgress` | `[]` | Squid-Egress zu festen IPs ausserhalb des Clusters: Liste aus `ip`, `port`, optional `comment`. Fuer Ziele hinter Stub-Services mit manueller EndpointSlice (LAN/NAS/Appliance) — `squidClusterEgress` erlaubt nur die ClusterIP VOR dem DNAT, danach steht die LAN-Adresse als Ziel und das Default-Deny greift wieder (Squid antwortet 503). Der Port wird automatisch zu Safe_ports/SSL_ports ergaenzt. |
 | `egress.extraEgressRules` | `[]` | Zusaetzliche K8s NetworkPolicy egress rules |
 
 **WICHTIG:** Der Default-Wert enthaelt eine Dummy-Domain (`placeholder.quarantine.internal`), sodass Squid standardmaessig ALLES blockiert. Eine leere Liste (`[]`) wuerde alles erlauben — das ist NICHT der Default. Subdomains werden automatisch eingeschlossen (`.example.com` matcht auch `sub.example.com`). Der Squid-Pod restartet automatisch bei Aenderungen (Checksum-Annotation).

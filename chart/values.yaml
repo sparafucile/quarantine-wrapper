@@ -49,6 +49,21 @@ egress:
   # Verwendet namespaceSelector (nicht IPs!) — funktioniert mit dynamischen ClusterIPs.
   # Squid's Domain-Whitelist (squidAllowedDomains) schuetzt weiterhin.
   squidClusterEgress: []
+  # --- Squid -> feste IPs ausserhalb des Clusters (LAN, Appliances, NAS) ---
+  # Fuer Ziele, die KEIN Cluster-Workload sind und deshalb von
+  # squidClusterEgress nicht abgedeckt werden. squidClusterEgress matcht nur
+  # die ClusterIP VOR dem DNAT; zeigt der Service auf eine LAN-Adresse (Stub-
+  # Service mit manueller EndpointSlice), greift nach dem DNAT wieder das
+  # Default-Deny und Squid antwortet mit 503.
+  # Jeder Eintrag oeffnet exakt eine IP und einen Port. Die Domain-Whitelist
+  # (squidAllowedDomains) gilt weiterhin zusaetzlich.
+  # Der Port wird automatisch zu Safe_ports/SSL_ports ergaenzt.
+  squidExtraEgress: []
+  # Beispiel:
+  # squidExtraEgress:
+  #   - ip: 192.168.4.5
+  #     port: 30008
+  #     comment: "Gitea auf TrueNAS (NodePort)"
   # Beispiel:
   # squidClusterEgress:
   #   - namespace: securevector     # Ziel-Namespace

@@ -64,7 +64,7 @@ Die `allow-egress-to-proxy` NetworkPolicy im Quarantine-Namespace muss den **ers
 
 ### Default-sichere Squid-Whitelist
 
-`egress.squidAllowedDomains` darf NIEMALS leer sein (`[]`), da eine leere ACL in Squid ALLES erlaubt. Default-Wert ist `placeholder.quarantine.internal` — eine nicht-existente Dummy-Domain, die effektiv allen Traffic blockiert. Echte Domains muessen explizit eingetragen werden.
+`egress.squidAllowedDomains` darf NIEMALS unabsichtlich leer sein (`[]`), da eine leere ACL in Squid ALLES erlaubt. Default-Wert ist `placeholder.quarantine.internal` — eine nicht-existente Dummy-Domain, die effektiv allen Traffic blockiert. Echte Domains muessen explizit eingetragen werden.
 
 ---
 
@@ -140,3 +140,26 @@ Alle k8s-apps Repos nutzen `chart/` als Helm-Chart-Verzeichnis. ArgoCD Source-Pa
 ### hardcoded DNS durch Values ersetzen
 
 `p-k8s-cluster.local` war in 6+ Templates hardcoded. Neuer Value `clusterDNS` (Default: `p-k8s-cluster.local`) in `_helpers.tpl`, `controlcenter.yaml`, `authentik-setup.yaml`, `authentik-cleanup.yaml`.
+
+
+## Cluster-interner Hostname != Cluster-interne Erreichbarkeit (2026-07-30)
+
+`gitea.sparafucile.net` ist im Cluster nicht dieselbe Adresse wie von aussen: CoreDNS loest den
+Namen per `rewrite name` auf die ClusterIP des `cilium-gateway-cluster-gateway` auf. Aus der
+Quarantaene heraus endet dieser Pfad in einem envoy-generierten `403 Access denied\r\n`
+(15 Byte, `text/plain`, `server: envoy`) — das sieht wie ein Auth-Fehler der Zielanwendung aus,
+ist aber eine Policy-Antwort. Erkennungsmerkmale:
+
+- Squid loggt den Versuch **erfolgreich** (`TCP_TUNNEL/200 ... HIER_DIRECT/<ClusterIP>`) — die
+  Kette bricht also erst hinter Squid.
+- Derselbe Request aus einem Namespace ohne Quarantaene-Policy liefert 200 und den echten Body.
+- Der Body ist exakt `Access denied\r\n`; die Zielanwendung wuerde JSON oder HTML liefern.
+
+## Stub-Service auf LAN-Ziel: squidClusterEgress reicht nicht (2026-07-30)
+
+`squidClusterEgress` rendert `namespaceSelector` + `ipBlock: serviceCIDR`. Beides trifft nur
+Cluster-Workloads bzw. die ClusterIP **vor** dem DNAT. Zeigt der Service auf eine LAN-Adresse
+(Stub-Service mit manueller EndpointSlice, z.B. `external-services/ext-gitea` -> `192.168.4.5:30008`),
+steht nach dem DNAT die LAN-IP als Ziel und das Default-Deny greift erneut. Symptom: Squid
+antwortet mit einer 503-Fehlerseite (HTML, ~3 kB), nicht mit einem Timeout.
+Loesung: `egress.squidExtraEgress` mit genau einer IP und einem Port.

@@ -19,6 +19,10 @@ data:
     acl Safe_ports port {{ .port }}
     acl SSL_ports port {{ .port }}
     {{- end }}
+    {{- range .Values.egress.squidExtraEgress }}
+    acl Safe_ports port {{ .port }}
+    acl SSL_ports port {{ .port }}
+    {{- end }}
     acl CONNECT method CONNECT
     {{- if .Values.egress.squidAllowedDomains }}
 
@@ -35,7 +39,12 @@ data:
     {{- end }}
     http_access deny all
 
+    # Zwei Senken: Datei fuer squidclient/Debug im Pod, stdout fuer Alloy->Loki.
+    # Ohne die stdout-Zeile ueberlebt kein Zugriffs-Log einen Pod-Restart und
+    # eine spaetere Auswertung der tatsaechlich genutzten Ziele (z.B. um die
+    # Domain-Whitelist wieder zu verengen) ist nicht moeglich.
     access_log daemon:/var/log/squid/access.log squid
+    access_log stdio:/dev/stdout squid
     cache_log /var/log/squid/cache.log
     cache_dir ufs /var/spool/squid 1000 16 256
     maximum_object_size 512 MB
