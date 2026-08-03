@@ -8,18 +8,24 @@
   "packageRules": [
     {
       "description": "Container-Images in values.yaml",
-      "matchManagers": ["regex"],
-      "matchFileNames": ["values.yaml"],
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["chart/values.yaml"],
       "automerge": false,
       "groupName": "container-images"
+    },
+    {
+      "description": "ubuntu/squid nutzt Kanal-Suffixe (_edge/_beta) statt Semver. Der _beta-Kanal wird seit 2025-11-24 nicht mehr gebaut, deshalb ist _edge der einzige gepflegte Kanal - ein Update darf nie von _edge zurueck nach _beta laufen. Regex-Versioning haelt Squid-Version und Ubuntu-Release getrennt und bindet das Suffix fest.",
+      "matchPackageNames": ["ubuntu/squid"],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)-(?<compatibility>\\d+\\.\\d+_edge)$"
     }
   ],
   "customManagers": [
     {
+      "description": "Images stehen als repository/tag-Paar in chart/values.yaml. WICHTIG: fileMatch heisst seit Renovate 41 managerFilePatterns und matchManagers erwartet 'custom.regex' statt 'regex' - mit den alten Namen war dieser Manager ein stiller No-Op und KEIN Image in values.yaml wurde getrackt.",
       "customType": "regex",
-      "fileMatch": ["values\\.yaml$"],
+      "managerFilePatterns": ["/^chart/values\\.yaml$/"],
       "matchStrings": [
-        "repository:\\s*(?<depName>[\\w./-]+)\\n\\s*tag:\\s*[\"']?(?<currentValue>[\\w.-]+)[\"']?"
+        "repository:\\s*(?<depName>[\\w./-]+)\\n(?:\\s*#[^\\n]*\\n)*\\s*tag:\\s*[\"']?(?<currentValue>[\\w.\\-_]+)[\"']?"
       ],
       "datasourceTemplate": "docker"
     }

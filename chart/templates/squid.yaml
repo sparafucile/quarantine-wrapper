@@ -39,7 +39,9 @@ data:
     {{- end }}
     http_access deny all
 
-    # Zwei Senken: Datei fuer squidclient/Debug im Pod, stdout fuer Alloy->Loki.
+    # Zwei Senken: Datei fuer Debug im Pod, stdout fuer Alloy->Loki.
+    # (squidclient gab es hier frueher als Debug-Weg - Squid 7 hat das Tool
+    #  entfernt. Ersatz: curl http://<squid>:3128/squid-internal-mgr/menu)
     # Ohne die stdout-Zeile ueberlebt kein Zugriffs-Log einen Pod-Restart und
     # eine spaetere Auswertung der tatsaechlich genutzten Ziele (z.B. um die
     # Domain-Whitelist wieder zu verengen) ist nicht moeglich.

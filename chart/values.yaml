@@ -87,7 +87,19 @@ egress:
 squid:
   image:
     repository: ubuntu/squid
-    tag: "5.2-22.04_beta"
+    # 7.2-26.04_edge statt 5.2-22.04_beta (2026-08-03):
+    # (1) Squid 5 ist upstream seit 2023-07-06 EOL.
+    # (2) Der _beta-Kanal von ubuntu/squid wird NICHT mehr gebaut - alle
+    #     _beta-Tags stehen seit 2025-11-24 still. Das Image bekam damit
+    #     auch keine Ubuntu-22.04-Backports mehr, die Absicherung, auf die
+    #     man sich bei einem EOL-Upstream verlaesst, war also gar nicht da.
+    #     _edge wird aktiv gebaut (7.2-26.04_edge zuletzt 2026-08-01).
+    # Config-Vertraeglichkeit geprueft: Squid 7 entfernt ESI, cache_object://,
+    # squidclient, cachemgr.cgi, das purge-Tool, Ident und die smb_lm-Helfer -
+    # nichts davon wird hier verwendet. Alle genutzten Direktiven (http_port,
+    # acl, http_access, access_log daemon:, cache_dir ufs, dns_nameservers,
+    # *_timeout, *_idle_pconn_timeout) sind in 7 unveraendert.
+    tag: "7.2-26.04_edge"
   port: 3128
   # Erlaubte Ports fuer Squid ACL (Safe_ports = alle, SSL_ports = CONNECT-Tunnel)
   safePorts: [80, 443, 8080, 8443]
