@@ -113,10 +113,24 @@ data:
         print("CA keypair already exists in OpenBao. Skipping generation.")
     else:
         print("Generating new CA keypair...")
+        # X509v3-Extensions sind PFLICHT. Ohne sie erzeugt `openssl req -x509`
+        # ein Zertifikat ganz ohne Extensions — weder basicConstraints noch
+        # keyUsage. Node/OpenSSL-1.x akzeptiert so eine CA klaglos, OpenSSL 3
+        # (und damit jeder Python-Client: httpx, requests, urllib) lehnt sie ab
+        # mit "CA cert does not include key usage extension". Symptom ist ein
+        # CERTIFICATE_VERIFY_FAILED gegen JEDEN von mitmproxy intercepteten
+        # Host — waehrend Hosts aus ignoreHosts weiter funktionieren, was die
+        # Fehlersuche in die Irre fuehrt.
+        # Gefunden 2026-08-05 an hermes-quarantine (Python-Agent); die CAs von
+        # openclaw-quarantine tragen denselben Mangel, nur faellt er dort nicht
+        # auf, weil OpenClaw ein Node-Prozess ist.
         subprocess.run([
             "openssl", "req", "-x509", "-newkey", "rsa:4096", "-days", "3650",
             "-nodes", "-keyout", "/tmp/ca-key.pem", "-out", "/tmp/ca-cert.pem",
-            "-subj", f"/CN=mitmproxy CA ({APP_NAME})/O=Quarantine/OU={APP_NAME}"
+            "-subj", f"/CN=mitmproxy CA ({APP_NAME})/O=Quarantine/OU={APP_NAME}",
+            "-addext", "basicConstraints=critical,CA:TRUE",
+            "-addext", "keyUsage=critical,keyCertSign,cRLSign,digitalSignature",
+            "-addext", "subjectKeyIdentifier=hash"
         ], check=True, capture_output=True)
 
         with open("/tmp/ca-cert.pem") as f:
