@@ -163,3 +163,57 @@ Cluster-Workloads bzw. die ClusterIP **vor** dem DNAT. Zeigt der Service auf ein
 steht nach dem DNAT die LAN-IP als Ziel und das Default-Deny greift erneut. Symptom: Squid
 antwortet mit einer 503-Fehlerseite (HTML, ~3 kB), nicht mit einem Timeout.
 Loesung: `egress.squidExtraEgress` mit genau einer IP und einem Port.
+
+## mitmproxy-CA ohne X509v3-Extensions — Node verzeiht es, OpenSSL 3 nicht (2026-08-05)
+
+`openssl req -x509` **ohne** `-addext` erzeugt ein Zertifikat ganz ohne
+X509v3-Extensions — weder `basicConstraints` noch `keyUsage`. Node akzeptiert so
+eine CA klaglos, OpenSSL 3 lehnt sie ab:
+
+```
+CERTIFICATE_VERIFY_FAILED: CA cert does not include key usage extension
+```
+
+Aufgefallen erst mit `hermes-quarantine` (Python/httpx). **Die CAs aller vor
+2026-08-05 erzeugten Quarantaenen tragen den Mangel**, inklusive
+`openclaw-quarantine` — dort symptomfrei, weil OpenClaw ein Node-Prozess ist.
+
+Behoben in `chart/templates/openbao-setup.yaml`:
+
+```python
+"-addext", "basicConstraints=critical,CA:TRUE",
+"-addext", "keyUsage=critical,keyCertSign,cRLSign,digitalSignature",
+"-addext", "subjectKeyIdentifier=hash"
+```
+
+Wirkt nur auf **neu erzeugte** CAs. Rotation einer Bestands-CA:
+
+1. `bao kv delete secret/apps/<ns>/mitmproxy-ca` (soft, wiederherstellbar)
+2. Wrapper-Sync → Hook `openbao-ca-setup` erzeugt v2
+3. K8s-Secret loeschen, ESO legt neu an (`creationPolicy: Owner`).
+   **Die Secret-Keys heissen `mitmproxy-ca-cert.pem` / `mitmproxy-ca-key.pem`**,
+   nicht `cert`/`key` wie in OpenBao — `jsonpath={.data.cert}` liefert
+   stillschweigend nichts.
+4. `rollout restart deploy mitmproxy-debug`
+5. `kubectl create job --from=cronjob/ca-cert-distributor`
+6. `rollout restart deploy <app>`
+
+**Verifikation nur an einem tatsaechlich intercepteten Host** — ein
+`ignoreHosts`-Ziel (pypi.org, github.com) validiert gegen die oeffentlichen
+Roots und beweist nichts. Genau das fuehrt die Fehlersuche in die Irre: es sieht
+aus, als funktioniere das Netz und nur einzelne Ziele seien kaputt.
+
+### Offen: der System-Store bleibt unangetastet
+
+`trust-mitmproxy-ca` baut ein **paralleles** Bundle unter
+`/etc/ssl/custom/ca-certificates.crt`; `/etc/ssl/certs/ca-certificates.crt`
+enthaelt die mitm-CA nicht (nachgemessen: 0 Treffer bei 150 Zertifikaten).
+Deshalb muss jedes Werkzeug einzeln dorthin gezeigt werden — `SSL_CERT_FILE`
+(httpx), `REQUESTS_CA_BUNDLE` (requests), `GIT_SSL_CAINFO` (git),
+`NODE_EXTRA_CA_CERTS` (Node). Jedes neue Werkzeug bringt eine neue Variable.
+
+Generelle Loesung: `emptyDir` auf `/etc/ssl/certs`, initContainer fuehrt
+System-Store + mitm-CA zusammen und laesst `update-ca-certificates` laufen;
+danach koennen alle tool-spezifischen Variablen weg. Betrifft beide
+Quarantaenen — deshalb bewusst nicht im Vorbeigehen geaendert.
+Siehe `claude-workspace/BACKLOG.md`.
