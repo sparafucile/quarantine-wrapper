@@ -23,8 +23,13 @@ metadata:
       Injiziert Proxy-Env-Vars, CA-Trust initContainer und Volumes in alle
       Pods in Quarantine-Namespaces (Label quarantine=true).
 spec:
+  admission: true
+  background: true
+  emitWarning: false
+  validationFailureAction: Audit
   rules:
     - name: inject-proxy-config
+      skipBackgroundRequests: true
       match:
         any:
           - resources:
@@ -37,6 +42,7 @@ spec:
         # Lese Namespace-Annotations ueber K8s API
         - name: nsAnnotations
           apiCall:
+            method: GET
             urlPath: '/api/v1/namespaces/{{`{{request.namespace}}`}}'
             jmesPath: 'metadata.annotations'
         # Extrahiere einzelne Werte mit Defaults

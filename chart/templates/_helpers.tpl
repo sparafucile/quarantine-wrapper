@@ -254,6 +254,10 @@ Wird weiterhin vom helloWorld-Pod und anderen Wrapper-eigenen Workloads verwende
 {{- define "quarantine-wrapper.caTrustInitContainer" -}}
 - name: trust-mitmproxy-ca
   image: {{ printf "%s:%s" .Values.ca.initImage.repository .Values.ca.initImage.tag }}
+  imagePullPolicy: IfNotPresent
+  resources: {}
+  terminationMessagePath: /dev/termination-log
+  terminationMessagePolicy: File
   command: ["/bin/sh", "-c"]
   args:
     - |
@@ -266,10 +270,10 @@ Wird weiterhin vom helloWorld-Pod und anderen Wrapper-eigenen Workloads verwende
         cp /etc/ssl/certs/ca-certificates.crt /shared-certs/ca-certificates.crt
       fi
   volumeMounts:
-    - name: mitmproxy-ca-cert
+    - name: quarantine-ca-cert
       mountPath: /ca-cert
       readOnly: true
-    - name: shared-certs
+    - name: quarantine-certs
       mountPath: /shared-certs
 {{- end }}
 
@@ -277,11 +281,12 @@ Wird weiterhin vom helloWorld-Pod und anderen Wrapper-eigenen Workloads verwende
 CA-Trust Volumes für Quarantine-Pods (Legacy-Helper).
 */}}
 {{- define "quarantine-wrapper.caTrustVolumes" -}}
-- name: mitmproxy-ca-cert
+- name: quarantine-ca-cert
   configMap:
     name: mitmproxy-ca-cert
     optional: true
-- name: shared-certs
+    defaultMode: 420
+- name: quarantine-certs
   emptyDir: {}
 {{- end }}
 
@@ -289,7 +294,7 @@ CA-Trust Volumes für Quarantine-Pods (Legacy-Helper).
 CA-Trust Volume-Mounts für den App-Container (Legacy-Helper).
 */}}
 {{- define "quarantine-wrapper.caTrustVolumeMounts" -}}
-- name: shared-certs
+- name: quarantine-certs
   mountPath: /etc/ssl/custom
   readOnly: true
 {{- end }}
