@@ -20,7 +20,9 @@ metadata:
     {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
 spec:
   parentRefs:
-    - name: {{ .Values.gateway.name }}
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.name }}
       namespace: {{ .Values.gateway.namespace }}
       sectionName: {{ .Values.gateway.sectionName }}
   hostnames:
@@ -32,12 +34,18 @@ spec:
             value: /
       backendRefs:
         {{- if .Values.authentik.enabled }}
-        - name: authentik-server
+        - group: ""
+          kind: Service
+          name: authentik-server
           namespace: {{ .Values.authentik.namespace }}
           port: 80
+          weight: 1
         {{- else }}
-        - name: hello-world
+        - group: ""
+          kind: Service
+          name: hello-world
           port: {{ .Values.helloWorld.port }}
+          weight: 1
         {{- end }}
 {{- end }}
 
@@ -55,20 +63,32 @@ metadata:
     {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
 spec:
   parentRefs:
-    - name: {{ .Values.gateway.name }}
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.name }}
       namespace: {{ .Values.gateway.namespace }}
       sectionName: {{ .Values.gateway.sectionName }}
   hostnames:
     - {{ include "quarantine-wrapper.mitmwebHostname" . }}
   rules:
-    - backendRefs:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
         {{- if and .Values.authentik.enabled .Values.mitmproxy.authentik.enabled }}
-        - name: authentik-server
+        - group: ""
+          kind: Service
+          name: authentik-server
           namespace: {{ .Values.authentik.namespace }}
           port: 80
+          weight: 1
         {{- else }}
-        - name: mitmproxy
+        - group: ""
+          kind: Service
+          name: mitmproxy
           port: {{ .Values.mitmproxy.webPort }}
+          weight: 1
         {{- end }}
 {{- end }}
 
@@ -86,7 +106,9 @@ metadata:
     {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
 spec:
   parentRefs:
-    - name: {{ .Values.gateway.name }}
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.name }}
       namespace: {{ .Values.gateway.namespace }}
       sectionName: {{ .Values.gateway.sectionName }}
   hostnames:
@@ -98,11 +120,17 @@ spec:
             value: /
       backendRefs:
         {{- if .Values.authentik.enabled }}
-        - name: authentik-server
+        - group: ""
+          kind: Service
+          name: authentik-server
           namespace: {{ .Values.authentik.namespace }}
           port: 80
+          weight: 1
         {{- else }}
-        - name: controlcenter
+        - group: ""
+          kind: Service
+          name: controlcenter
           port: {{ .Values.controlcenter.port }}
+          weight: 1
         {{- end }}
 {{- end }}
