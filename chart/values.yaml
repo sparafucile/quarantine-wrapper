@@ -36,6 +36,7 @@ egress:
   # Standard: Internet nur via Proxy, LAN/Pod-CIDR/Service-CIDR blockiert
   squidAllowedDomains:           # Domain-Whitelist fuer Squid
     - placeholder.quarantine.internal   # Dummy: blockiert ALLES bis echte Domains eingetragen werden
+    - p-hermes-webhook-k8s.sparafucile.net # Interner Hermes Webhook via Squid
   # WICHTIG: Leere Liste ([]) wuerde ALLES erlauben!
   # Eintraege OHNE fuehrenden Punkt - der Punkt wird automatisch ergaenzt.
   # Beispiel:
@@ -58,7 +59,10 @@ egress:
   # Jeder Eintrag oeffnet exakt eine IP und einen Port. Die Domain-Whitelist
   # (squidAllowedDomains) gilt weiterhin zusaetzlich.
   # Der Port wird automatisch zu Safe_ports/SSL_ports ergaenzt.
-  squidExtraEgress: []
+  squidExtraEgress:
+    - ip: 192.168.4.131
+      port: 443
+      comment: "Hermes Webhook VIP via Squid"
   # Beispiel:
   # squidExtraEgress:
   #   - ip: 192.168.4.5
