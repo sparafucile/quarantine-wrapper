@@ -45,6 +45,7 @@ egress:
   #   - api.openai.com                      # OpenAI API
   #   - registry.npmjs.org                  # npm Registry
   extraEgressRules: []         # Zusaetzliche K8s NetworkPolicy egress rules (App-Namespace)
+  extraIngressRules: []        # Zusaetzliche K8s NetworkPolicy ingress rules (App-Namespace)
   # --- Squid → Cluster-interne Services (GW-Namespace) ---
   # Erlaubt Squid Egress zu bestimmten Namespaces/Ports innerhalb des Clusters.
   # Verwendet namespaceSelector (nicht IPs!) — funktioniert mit dynamischen ClusterIPs.

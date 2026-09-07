@@ -192,6 +192,23 @@ spec:
         {{- end }}
       {{- end }}
 {{- end }}
+{{- if .Values.egress.extraIngressRules }}
+---
+# Zusaetzliche, eng begrenzte Ingress-Regeln fuer interne Verbraucher.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-extra-ingress
+  namespace: {{ include "quarantine-wrapper.appNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    {{- toYaml .Values.egress.extraIngressRules | nindent 4 }}
+{{- end }}
 {{- if .Values.egress.directEgressCIDRs }}
 ---
 # Direkter HTTPS-Egress fuer Hosts die den Proxy umgehen muessen.
