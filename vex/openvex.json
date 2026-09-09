@@ -1,10 +1,10 @@
 {
   "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-09-06T06:23:38Z",
+  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-09-09T06:28:54Z",
   "author": "vex-system/vex-pr-generator",
   "role": "automated-pipeline",
-  "timestamp": "2026-09-06T06:23:38Z",
-  "version": 17,
+  "timestamp": "2026-09-09T06:28:54Z",
+  "version": 18,
   "statements": [
     {
       "vulnerability": {
@@ -24314,6 +24314,402 @@
           "subcomponents": [
             {
               "@id": "pkg:apk/alpine/libuuid@2.42.1-r0?arch=x86_64&distro=alpine-3.24.1&upstream=util-linux"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-13608",
+        "aliases": [
+          "CVE-2026-13608"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-13608"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/curl@8.21.0-r0?arch=x86_64&distro=alpine-3.24.1"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-18924",
+        "aliases": [
+          "CVE-2026-18924"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-18924"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/curl@8.21.0-r0?arch=x86_64&distro=alpine-3.24.1"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-19931",
+        "aliases": [
+          "CVE-2026-19931"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-19931"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/curl@8.21.0-r0?arch=x86_64&distro=alpine-3.24.1"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-27456",
+        "aliases": [
+          "CVE-2026-27456"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-27456"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libuuid@2.42.1-r0?arch=x86_64&distro=alpine-3.24.1&upstream=util-linux"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-53612",
+        "aliases": [
+          "CVE-2026-53612"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-53612"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libuuid@2.42.1-r0?arch=x86_64&distro=alpine-3.24.1&upstream=util-linux"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-53613",
+        "aliases": [
+          "CVE-2026-53613"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-53613"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libuuid@2.42.1-r0?arch=x86_64&distro=alpine-3.24.1&upstream=util-linux"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-53614",
+        "aliases": [
+          "CVE-2026-53614"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-53614"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libuuid@2.42.1-r0?arch=x86_64&distro=alpine-3.24.1&upstream=util-linux"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-76642",
+        "aliases": [
+          "CVE-2026-76642"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-76642"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libuuid@2.42.1-r0?arch=x86_64&distro=alpine-3.24.1&upstream=util-linux"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-78408",
+        "aliases": [
+          "CVE-2026-78408"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-78408"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libuuid@2.42.1-r0?arch=x86_64&distro=alpine-3.24.1&upstream=util-linux"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-78409",
+        "aliases": [
+          "CVE-2026-78409"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-78409"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libuuid@2.42.1-r0?arch=x86_64&distro=alpine-3.24.1&upstream=util-linux"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-78410",
+        "aliases": [
+          "CVE-2026-78410"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-78410"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libuuid@2.42.1-r0?arch=x86_64&distro=alpine-3.24.1&upstream=util-linux"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-80229",
+        "aliases": [
+          "CVE-2026-80229"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-80229"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/curl@8.21.0-r0?arch=x86_64&distro=alpine-3.24.1"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-80230",
+        "aliases": [
+          "CVE-2026-80230"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-80230"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/curl@8.21.0-r0?arch=x86_64&distro=alpine-3.24.1"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-80231",
+        "aliases": [
+          "CVE-2026-80231"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-80231"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/curl@8.21.0-r0?arch=x86_64&distro=alpine-3.24.1"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-80255",
+        "aliases": [
+          "CVE-2026-80255"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-80255"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/curl@8.21.0-r0?arch=x86_64&distro=alpine-3.24.1"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-80256",
+        "aliases": [
+          "CVE-2026-80256"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-80256"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/curl@8.21.0-r0?arch=x86_64&distro=alpine-3.24.1"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-82208",
+        "aliases": [
+          "CVE-2026-82208"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-82208"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/curl@8.21.0-r0?arch=x86_64&distro=alpine-3.24.1"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-82209",
+        "aliases": [
+          "CVE-2026-82209"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-82209"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/curl@8.21.0-r0?arch=x86_64&distro=alpine-3.24.1"
             }
           ]
         }
