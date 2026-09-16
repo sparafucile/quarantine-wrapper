@@ -66,6 +66,31 @@ spec:
               - {}
 ---
 {{- end }}
+{{- range .Values.cilium.extraIngress }}
+---
+# Namespace-scoped service-to-service ingress. Kubernetes NetworkPolicy and
+# Cilium both need an explicit allow when quarantine default-deny is enabled.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-extra-ingress-{{ .namespace }}
+  namespace: {{ include "quarantine-wrapper.appNamespace" $ }}
+  labels:
+    {{- include "quarantine-wrapper.appLabels" $ | nindent 4 }}
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .namespace }}
+      toPorts:
+        - ports:
+            {{- range .ports }}
+            - port: "{{ . }}"
+              protocol: TCP
+            {{- end }}
+{{- end }}
+---
 # --- Gateway-Namespace: Gateway Envoy Ingress (mitmweb UI) ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

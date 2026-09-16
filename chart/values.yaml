@@ -227,6 +227,10 @@ authentik:
 # ============================================================
 cilium:
   l7Visibility: true
+  # Namespace-scoped service-to-service ingress, evaluated by Cilium as well
+  # as Kubernetes NetworkPolicy. This does not expose the app externally.
+  extraIngress:
+    []
 
 # ============================================================
 # RBAC (Quarantine-Workloads)
