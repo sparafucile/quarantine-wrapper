@@ -90,7 +90,7 @@ spec:
         component: squid
         app.kubernetes.io/part-of: {{ .Values.appName }}-quarantine
       annotations:
-        checksum/squid-config: {{ .Values.egress | toJson | sha256sum | trunc 16 }}
+        checksum/squid-config: {{ omit .Values.egress "squidPodEgress" | toJson | sha256sum | trunc 16 }}
     spec:
       containers:
         - name: squid

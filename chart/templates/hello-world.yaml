@@ -135,7 +135,9 @@ spec:
         app: hello-world
         app.kubernetes.io/part-of: {{ .Values.appName }}-quarantine
       annotations:
-        checksum/config: {{ .Values | toJson | sha256sum | trunc 8 }}-{{ .Chart.Version }}
+        {{- $checksumValues := deepCopy .Values }}
+        {{- $_ := unset $checksumValues.egress "squidPodEgress" }}
+        checksum/config: {{ $checksumValues | toJson | sha256sum | trunc 8 }}-{{ .Chart.Version }}
     spec:
       restartPolicy: Always
       dnsPolicy: ClusterFirst

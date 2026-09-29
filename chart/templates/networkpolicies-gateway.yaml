@@ -415,6 +415,42 @@ spec:
     {{- end }}
 {{- end }}
 
+{{- if .Values.egress.squidPodEgress }}
+---
+# Squid -> exakt selektierte In-Cluster-Pods nach Service-/VIP-DNAT.
+# Die separate VIP/ClusterIP-Regel fuer den Pfad vor DNAT bleibt erforderlich.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-squid-selected-pods
+  namespace: {{ include "quarantine-wrapper.gwNamespace" . }}
+  labels:
+    {{- include "quarantine-wrapper.gwLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: egress-proxy
+  policyTypes:
+    - Egress
+  egress:
+    {{- range .Values.egress.squidPodEgress }}
+    {{- $namespace := required "egress.squidPodEgress[].namespace is required" .namespace }}
+    {{- $labels := required "egress.squidPodEgress[].podLabels must be nonempty" .podLabels }}
+    {{- if not (kindIs "map" $labels) }}{{ fail "egress.squidPodEgress[].podLabels must be a map" }}{{- end }}
+    {{- if eq (len $labels) 0 }}{{ fail "egress.squidPodEgress[].podLabels must be nonempty" }}{{- end }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $namespace | quote }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $labels | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ required "egress.squidPodEgress[].port is required" .port }}
+    {{- end }}
+{{- end }}
+
 {{- if .Values.egress.squidExtraEgress }}
 ---
 # Squid -> feste IPs ausserhalb des Clusters (LAN/NAS/Appliances)

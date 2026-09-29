@@ -51,6 +51,10 @@ egress:
   # Verwendet namespaceSelector (nicht IPs!) — funktioniert mit dynamischen ClusterIPs.
   # Squid's Domain-Whitelist (squidAllowedDomains) schuetzt weiterhin.
   squidClusterEgress: []
+  # Opt-in: nur ausgewaehlte Pods eines Namespaces nach Service-/VIP-DNAT.
+  # Pro Eintrag namespace, nichtleere podLabels und TCP-port angeben.
+  # Anders als squidClusterEgress wird kein gesamter Namespace freigegeben.
+  squidPodEgress: []
   # --- Squid -> feste IPs ausserhalb des Clusters (LAN, Appliances, NAS) ---
   # Fuer Ziele, die KEIN Cluster-Workload sind und deshalb von
   # squidClusterEgress nicht abgedeckt werden. squidClusterEgress matcht nur
