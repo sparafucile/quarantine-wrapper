@@ -1,10 +1,10 @@
 {
   "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-09-28T06:25:52Z",
+  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-10-02T06:31:37Z",
   "author": "vex-system/vex-pr-generator",
   "role": "automated-pipeline",
-  "timestamp": "2026-09-28T06:25:52Z",
-  "version": 19,
+  "timestamp": "2026-10-02T06:31:37Z",
+  "version": 20,
   "statements": [
     {
       "vulnerability": {
@@ -24912,6 +24912,28 @@
           "subcomponents": [
             {
               "@id": "pkg:apk/alpine/libexpat@2.8.4-r0?arch=x86_64&distro=alpine-3.24.2&upstream=expat"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://security.alpinelinux.org/vuln/CVE-2026-46675",
+        "aliases": [
+          "CVE-2026-46675"
+        ],
+        "name": "CVE-2026-46675"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libpng@1.6.58-r1?arch=x86_64&distro=alpine-3.24.2"
             }
           ]
         }
