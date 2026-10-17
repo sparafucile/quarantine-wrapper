@@ -143,6 +143,10 @@ mitmproxy:
                                 # Beispiel: ["matrix\\.sparafucile\\.net"]
   storageClass: longhorn
   storageSize: 100Mi
+  # Optional: ephemeralConfig: true (default false when omitted).
+  # Requires ca.enabled; seed the same CA from Secret into an emptyDir.
+  # Enables readiness-gated RollingUpdate without an RWO volume handoff.
+  # The existing mitmproxy-certs PVC remains rendered and is not deleted.
   resources:
     requests:
       memory: "256Mi"

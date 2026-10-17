@@ -1,4 +1,7 @@
 {{- if .Values.mitmproxy.enabled }}
+{{- if and .Values.mitmproxy.ephemeralConfig (not .Values.ca.enabled) }}
+{{- fail "mitmproxy.ephemeralConfig requires ca.enabled: true (stable CA from Secret)" }}
+{{- end }}
 # ============================================================================
 # mitmproxy/mitmweb (im Gateway-Namespace)
 # Debug-Proxy mit TLS-Interception und Web-UI
@@ -29,8 +32,15 @@ metadata:
 spec:
   replicas: 1
   strategy:
+    {{- if .Values.mitmproxy.ephemeralConfig }}
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    {{- else }}
     type: Recreate      # RWO PVC — RollingUpdate haengt bei Multi-Attach
     rollingUpdate: null  # Explizit loeschen, sonst SSA-Konflikt mit altem RollingUpdate-Spec
+    {{- end }}
   selector:
     matchLabels:
       app: mitmproxy-debug
@@ -49,6 +59,12 @@ spec:
             - /bin/sh
             - -c
             - |
+              {{- if .Values.mitmproxy.ephemeralConfig }}
+              set -eu
+              umask 077
+              test -s /ca-secret/mitmproxy-ca-key.pem
+              test -s /ca-secret/mitmproxy-ca-cert.pem
+              {{- end }}
               echo "Installing pre-defined CA keypair for mitmproxy..."
               # mitmproxy erwartet KEY+CERT kombiniert in mitmproxy-ca.pem
               cat /ca-secret/mitmproxy-ca-key.pem /ca-secret/mitmproxy-ca-cert.pem > /mitmproxy-home/mitmproxy-ca.pem
@@ -103,6 +119,18 @@ spec:
               name: proxy
             - containerPort: {{ .Values.mitmproxy.webPort }}
               name: web-ui
+          {{- if .Values.mitmproxy.ephemeralConfig }}
+          startupProbe:
+            tcpSocket:
+              port: proxy
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: proxy
+            periodSeconds: 2
+            failureThreshold: 2
+          {{- end }}
           volumeMounts:
             - name: mitmproxy-data
               mountPath: /home/mitmproxy/.mitmproxy
@@ -117,8 +145,13 @@ spec:
             secretName: {{ .Values.ca.secretName }}
         {{- end }}
         - name: mitmproxy-data
+          {{- if .Values.mitmproxy.ephemeralConfig }}
+          emptyDir:
+            sizeLimit: 100Mi
+          {{- else }}
           persistentVolumeClaim:
             claimName: mitmproxy-certs
+          {{- end }}
         - name: flow-data
           emptyDir:
             sizeLimit: 5Gi

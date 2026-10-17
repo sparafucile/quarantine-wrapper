@@ -18,6 +18,8 @@ Generisches Helm Chart zum Erstellen isolierter Quarantine-Umgebungen fuer belie
 
 ## Weiterfuehrende Dokumentation
 
+- [PVC-unabhaengige mitmproxy-Rollouts](docs/proxy-rollout-safety.md): Opt-in, CA-Voraussetzungen, Merge-Reihenfolge und Rollback-Grenzen.
+
 | Dokument | Inhalt |
 |----------|--------|
 | [docs/VALUES.md](docs/VALUES.md) | Vollstaendige Values-Referenz (alle Parameter mit Defaults und Beschreibung) |
