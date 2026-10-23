@@ -1,10 +1,10 @@
 {
   "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-10-13T06:43:36Z",
+  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-10-23T07:30:13Z",
   "author": "vex-system/vex-pr-generator",
   "role": "automated-pipeline",
-  "timestamp": "2026-10-13T06:43:36Z",
-  "version": 22,
+  "timestamp": "2026-10-23T07:30:13Z",
+  "version": 23,
   "statements": [
     {
       "vulnerability": {
@@ -25608,6 +25608,324 @@
           "subcomponents": [
             {
               "@id": "pkg:apk/alpine/zlib@1.3.2-r0?arch=x86_64&distro=alpine-3.24.1"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://security.alpinelinux.org/vuln/CVE-2026-102633",
+        "aliases": [
+          "CVE-2026-102633"
+        ],
+        "name": "CVE-2026-102633"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libexpat@2.8.4-r0?arch=x86_64&distro=alpine-3.24.2&upstream=expat"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://security.alpinelinux.org/vuln/CVE-2026-107891",
+        "aliases": [
+          "CVE-2026-107891"
+        ],
+        "name": "CVE-2026-107891"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/musl@1.2.6-r2?arch=x86_64&distro=alpine-3.24.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://nvd.nist.gov/vuln/detail/CVE-2026-15176",
+        "description": "A vulnerability exists in NGINX Plus and NGINX Open Source when a location is configured that uses the alias directive together with rewrite and a set or return directive referencing the $request_filename variable. Alternatively, the same result could be achieved when the $request_filename variable is used in an access log format directive. An unauthenticated attacker along with conditions beyond their control can exploit this vulnerability by sending crafted HTTP requests. This may cause a heap buffer overflow in the NGINX worker process leading to a restart. Additionally, attackers can execute code on systems with Address Space Layout Randomization (ASLR) disabled or when the attacker can bypass ASLR.\n\nImpact:\nThis vulnerability may allow remote attackers to cause a denial-of-service (DoS) on the NGINX system or to possibly trigger a code execution. There is no control plane exposure; this is a data plane issue only.\n\n\n\n\nNote: Software versions which have reached End of Technical Support (EoTS) are not evaluated.",
+        "name": "CVE-2026-15176"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/nginx@1.31.6-r1?arch=x86_64&distro=alpine-3.24.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://security.alpinelinux.org/vuln/CVE-2026-77214",
+        "aliases": [
+          "CVE-2026-77214"
+        ],
+        "name": "CVE-2026-77214"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libexpat@2.8.4-r0?arch=x86_64&distro=alpine-3.24.2&upstream=expat"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://security.alpinelinux.org/vuln/CVE-2026-88806",
+        "aliases": [
+          "CVE-2026-88806"
+        ],
+        "name": "CVE-2026-88806"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libx11@1.8.13-r0?arch=x86_64&distro=alpine-3.24.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://nvd.nist.gov/vuln/detail/CVE-2026-92392",
+        "description": "During an upload, curl mishandles HTTP/2 `RST_STREAM` received from the server\n(with reason `HTTP_1_1_REQUIRED` or `REFUSED_STREAM`) leading to a use after\nfree of a `struct Curl_easy` object.",
+        "name": "CVE-2026-92392"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/curl@8.22.0-r0?arch=x86_64&distro=alpine-3.24.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://nvd.nist.gov/vuln/detail/CVE-2026-93479",
+        "description": "A vulnerability exists in NGINX Plus and NGINX Open Source when a map directive uses regex matching and the root directive or access log format references the map's regex capture variables before referencing the map output variable. Alternatively, the same result could be achieved by using a non-cacheable variable in a string expression under certain conditions. An unauthenticated attacker along with conditions beyond their control can exploit this vulnerability by sending crafted HTTP requests. This may cause a heap buffer overflow in the NGINX worker process leading to a restart. Additionally, attackers can execute code on systems with Address Space Layout Randomization (ASLR) disabled or when the attacker can bypass ASLR.\n\nImpact: \nThis vulnerability may allow remote attackers to cause a denial-of-service (DoS) on the NGINX system or to possibly trigger a code execution. There is no control plane exposure; this is a data plane issue only.\n\nNote: Software versions which have reached End of Technical Support (EoTS) are not evaluated.",
+        "name": "CVE-2026-93479"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/nginx@1.31.6-r1?arch=x86_64&distro=alpine-3.24.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://security.alpinelinux.org/vuln/CVE-2026-94283",
+        "aliases": [
+          "CVE-2026-94283"
+        ],
+        "name": "CVE-2026-94283"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libx11@1.8.13-r0?arch=x86_64&distro=alpine-3.24.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://security.alpinelinux.org/vuln/CVE-2026-94284",
+        "aliases": [
+          "CVE-2026-94284"
+        ],
+        "name": "CVE-2026-94284"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libx11@1.8.13-r0?arch=x86_64&distro=alpine-3.24.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://security.alpinelinux.org/vuln/CVE-2026-94285",
+        "aliases": [
+          "CVE-2026-94285"
+        ],
+        "name": "CVE-2026-94285"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libx11@1.8.13-r0?arch=x86_64&distro=alpine-3.24.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://security.alpinelinux.org/vuln/CVE-2026-94287",
+        "aliases": [
+          "CVE-2026-94287"
+        ],
+        "name": "CVE-2026-94287"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/libxpm@3.5.19-r0?arch=x86_64&distro=alpine-3.24.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://nvd.nist.gov/vuln/detail/CVE-2026-95101",
+        "description": "Description\nNGINX Plus and NGINX Open Source have a vulnerability in the ngx_http_v3_module module. When using HTTP/3 with \n\nproxy_request_buffering on directive, an unauthenticated attacker may be able to inject data in the proxied request.\n\nImpact\n\n\nThis vulnerability may allow remote attackers to \n\ninject data in the proxied request.  There is no control plane exposure; this is a data plane issue only.\n\n\n\n\n\n\nNote: Software versions which have reached End of Technical Support (EoTS) are not evaluated.",
+        "name": "CVE-2026-95101"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/nginx@1.31.6-r1?arch=x86_64&distro=alpine-3.24.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://nvd.nist.gov/vuln/detail/CVE-2026-97205",
+        "description": "NGINX Plus and NGINX Open Source have a vulnerability in the ngx_http_core_module module. When asynchronous file I/O (AIO) is enabled in certain configurations, processing a Server Side Includes (SSI) page containing “include virtual” commands may trigger a Use-After-Free (UAF) in the NGINX worker process. This may cause memory corruption or a worker process crash. Additionally, attackers can execute code on systems with Address Space Layout Randomization (ASLR) disabled or when the attacker can bypass ASLR.\n\nImpact:\nThis vulnerability may allow remote attackers to cause a denial-of-service (DoS) on the NGINX system, corrupt its memory, or possibly trigger code execution. There is no control plane exposure; this is a data plane issue only.\n\n\n\n\nNote: Software versions which have reached End of Technical Support (EoTS) are not evaluated.",
+        "name": "CVE-2026-97205"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/nginx@1.31.6-r1?arch=x86_64&distro=alpine-3.24.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://nvd.nist.gov/vuln/detail/CVE-2026-97629",
+        "description": "Description\nWhen NGINX Plus or NGINX Open Source is configured with ssl_session_cache \n\nshared:name:size\n\nwithout an explicit ssl_session_ticket_key file directives to automatically rotate SSL session ticket keys, a remote unauthenticated attacker is able to forge client SSL sessions \n\nin a non-deterministic manner that is beyond the attacker's control. An attacker could leverage this vulnerability to bypass verification of client certificates.\n\nImpact\n\n\nThis vulnerability can lead to the exposure of resources or functionality to unintended actors, possibly providing attackers with access to sensitive information. There is no control plane exposure; this is a data plane issue only.\n\n\n\n\n\n\nNote: Software versions which have reached End of Technical Support (EoTS) are not evaluated.",
+        "name": "CVE-2026-97629"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/nginx@1.31.6-r1?arch=x86_64&distro=alpine-3.24.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "https://security.alpinelinux.org/vuln/CVE-2026-107891",
+        "aliases": [
+          "CVE-2026-107891"
+        ],
+        "name": "CVE-2026-107891"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/alpine@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/musl@1.2.6-r2?arch=x86_64&distro=alpine-3.24.1"
             }
           ]
         }
