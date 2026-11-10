@@ -1,10 +1,10 @@
 {
   "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-10-28T06:50:38Z",
+  "@id": "https://gitea.sparafucile.net/k8s-apps/quarantine-wrapper/vex/2026-11-10T07:02:13Z",
   "author": "vex-system/vex-pr-generator",
   "role": "automated-pipeline",
-  "timestamp": "2026-10-28T06:50:38Z",
-  "version": 24,
+  "timestamp": "2026-11-10T07:02:13Z",
+  "version": 25,
   "statements": [
     {
       "vulnerability": {
@@ -26461,6 +26461,90 @@
       "status": "not_affected",
       "justification": "vulnerable_code_not_present",
       "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2025-60876",
+        "description": "BusyBox wget thru 1.3.7 accepted raw CR (0x0D)/LF (0x0A) and other C0 control bytes in the HTTP request-target (path/query), allowing the request line to be split and attacker-controlled headers to be injected. To preserve the HTTP/1.1 request-line shape METHOD SP request-target SP HTTP/1.1, a raw space (0x20) in the request-target must also be rejected (clients should use %20).",
+        "name": "https://nvd.nist.gov/vuln/detail/CVE-2025-60876"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/alpine@sha256:71e9b7bae160ba167fa17414401b94cbcdaf3c32feeab9298bd794a2a0614c35?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/busybox@1.37.0-r31?arch=x86_64&distro=alpine-3.24.3"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Vulnerable component is loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-4738",
+        "aliases": [
+          "CVE-2026-4738"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-4738"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/alpine@sha256:71e9b7bae160ba167fa17414401b94cbcdaf3c32feeab9298bd794a2a0614c35?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/zlib@1.3.2-r1?arch=x86_64&distro=alpine-3.24.3"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Vulnerable component is not loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2025-60876",
+        "description": "BusyBox wget thru 1.3.7 accepted raw CR (0x0D)/LF (0x0A) and other C0 control bytes in the HTTP request-target (path/query), allowing the request line to be split and attacker-controlled headers to be injected. To preserve the HTTP/1.1 request-line shape METHOD SP request-target SP HTTP/1.1, a raw space (0x20) in the request-target must also be rejected (clients should use %20).",
+        "name": "https://nvd.nist.gov/vuln/detail/CVE-2025-60876"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/busybox@1.37.0-r31?arch=x86_64&distro=alpine-3.24.4"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Vulnerable component is loaded into the memory"
+    },
+    {
+      "vulnerability": {
+        "@id": "CVE-2026-4738",
+        "aliases": [
+          "CVE-2026-4738"
+        ],
+        "name": "https://security.alpinelinux.org/vuln/CVE-2026-4738"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/nginx@sha256:713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11?repository_url=docker.io%2Flibrary",
+          "subcomponents": [
+            {
+              "@id": "pkg:apk/alpine/zlib@1.3.2-r1?arch=x86_64&distro=alpine-3.24.4"
+            }
+          ]
+        }
+      ],
+      "status": "affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Vulnerable component is loaded into the memory"
     }
   ]
 }
